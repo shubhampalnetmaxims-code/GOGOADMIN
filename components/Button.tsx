@@ -1,10 +1,10 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'black';
   icon?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  fullWidth?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({ 
@@ -13,6 +13,7 @@ export const Button: React.FC<ButtonProps> = ({
   icon, 
   className = '', 
   size = 'md',
+  fullWidth = false,
   ...props 
 }) => {
   const baseStyles = "inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors";
@@ -22,7 +23,7 @@ export const Button: React.FC<ButtonProps> = ({
     secondary: "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-blue-500",
     danger: "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500",
     ghost: "bg-transparent hover:bg-gray-100 text-gray-600",
-    black: "bg-gray-900 hover:bg-black text-white focus:ring-gray-900", // As seen in modals "Add" button
+    black: "bg-gray-900 hover:bg-black text-white focus:ring-gray-900",
   };
 
   const sizes = {
@@ -31,9 +32,11 @@ export const Button: React.FC<ButtonProps> = ({
     lg: "px-6 py-3 text-base",
   };
 
+  const widthStyles = fullWidth ? "w-full" : "";
+
   return (
     <button 
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`} 
+      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${widthStyles} ${className}`} 
       {...props}
     >
       {icon && <span className="mr-2 -ml-1">{icon}</span>}

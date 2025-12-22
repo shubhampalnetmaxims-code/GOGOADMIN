@@ -1,3 +1,4 @@
+
 export interface Make {
   id: string;
   name: string;
@@ -39,28 +40,56 @@ export interface Location {
   isActive: boolean;
 }
 
-export interface ZoneFee {
+export interface OperationalZone {
   id: string;
   name: string;
-  amount: number;
-  lat?: number;
-  lng?: number;
+  locationId: string;
+  lat: number;
+  lng: number;
+  radius: number;
 }
 
-export interface User {
-  name: string;
-  email: string;
-  avatarUrl?: string;
+export interface VehiclePricingConfig {
+  baseFare: number;
+  ratePerKm: number;
+  ratePerMin: number;
+  minFare: number;
+  waitRate: number;
+  safeWaitTime: number;
+  cancelFee: number;
+  commission: number;
+  tax: number;
+  nightSurcharge: number; 
+  nightSurchargeActive: boolean;
+  nightSurchargeStart: string;
+  nightSurchargeEnd: string;
+  safeguardMultiplier: number;
+  surcharges: ZoneFee[];
+}
+
+export interface ZoneFee {
+  id: string;
+  zoneId: string;
+  amount: number;
+  isActive: boolean;
+  startTime: string; // Added
+  endTime: string;   // Added
 }
 
 export interface SurgeRule {
   id: string;
   name: string;
   multiplier: number;
-  location: string;
+  locationIds: string[];
+  vehicleTypes: VehicleType[];
+  zoneIds: string[];
   startTime: string;
   endTime: string;
   isActive: boolean;
-  lat?: number;
-  lng?: number;
+}
+
+export interface User {
+  name: string;
+  email: string;
+  avatarUrl?: string;
 }

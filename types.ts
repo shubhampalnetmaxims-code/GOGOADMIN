@@ -1,0 +1,66 @@
+export interface Make {
+  id: string;
+  name: string;
+  modelsCount: number;
+  createdOn: string;
+}
+
+export interface Model {
+  id: string;
+  name: string;
+  makeId: string;
+  makeName: string;
+  vehicleCount: number;
+  vehicleType: VehicleType;
+  maxPassengers: number;
+}
+
+export enum VehicleType {
+  ECONOMY = 'ECONOMY',
+  SEDAN = 'SEDAN',
+  PREMIUM_SEDAN = 'PREMIUM_SEDAN',
+  SUV = 'SUV',
+  BIKE = 'BIKE',
+  OTHERS = 'OTHERS',
+}
+
+export enum PricingService {
+  BOOK_RIDE = 'Book Ride',
+  SHARING = 'Sharing',
+  PARCEL = 'Parcel',
+  CHAUFFER = 'Chauffer',
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  country: string;
+  currency: string;
+  isActive: boolean;
+}
+
+export interface ZoneFee {
+  id: string;
+  name: string;
+  amount: number;
+  lat?: number;
+  lng?: number;
+}
+
+export interface User {
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
+export interface SurgeRule {
+  id: string;
+  name: string;
+  multiplier: number;
+  location: string;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  lat?: number;
+  lng?: number;
+}

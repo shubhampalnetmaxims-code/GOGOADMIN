@@ -1,0 +1,7 @@
+{
+  "name": "Gogo Fleet Management",
+  "description": "A fleet management dashboard allowing administrators to manage vehicle makes and models.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

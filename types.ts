@@ -47,12 +47,18 @@ export interface OperationalZone {
   lat: number;
   lng: number;
   radius: number;
-  isActive: boolean; // Added
+  isActive: boolean;
+}
+
+export interface DistanceTier {
+  id: string;
+  upToKm: number;
+  rate: number;
 }
 
 export interface VehiclePricingConfig {
   baseFare: number;
-  ratePerKm: number;
+  ratePerKm: number; // Used as fallback or base tier
   ratePerMin: number;
   minFare: number;
   waitRate: number;
@@ -66,6 +72,7 @@ export interface VehiclePricingConfig {
   nightSurchargeEnd: string;
   safeguardMultiplier: number;
   surcharges: ZoneFee[];
+  distanceTiers: DistanceTier[]; // Added for non-linear pricing
 }
 
 export interface ZoneFee {

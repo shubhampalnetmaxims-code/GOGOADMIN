@@ -1,16 +1,15 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  Save, MapPin, Zap, Plus, Trash2, Globe, Settings2, Info,
-  CheckCircle2, Navigation, Clock, Timer, RefreshCw, Layers, Map as MapIcon,
-  ShieldAlert, Edit2, ChevronRight, DollarSign, Percent, Moon, ShieldCheck,
-  AlertCircle, HelpCircle, Calculator, Map, Check, Shield, Lock, Unlock
+  Save, MapPin, Zap, Plus, Trash2, Globe, CheckCircle2, Navigation, Clock, Timer, Layers, Map as MapIcon,
+  Edit2, ChevronRight, DollarSign, Moon, HelpCircle, Calculator, Check, Shield, Lock, Trash, Coffee, AlertTriangle,
+  Settings, Target, Crosshair
 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { Modal } from '../components/Modal';
-import { VehicleType, PricingService, SurgeRule, Location, ZoneFee, OperationalZone, VehiclePricingConfig } from '../types';
+import { VehicleType, PricingService, SurgeRule, Location, ZoneFee, OperationalZone, VehiclePricingConfig, DistanceTier } from '../types';
 
 interface PricingPageProps {
   service: PricingService;
@@ -44,6 +43,11 @@ const DEFAULT_PRICING: VehiclePricingConfig = {
   nightSurchargeEnd: "05:00",
   safeguardMultiplier: 3.5,
   surcharges: [],
+  distanceTiers: [
+    { id: 't1', upToKm: 5, rate: 2.50 },
+    { id: 't2', upToKm: 20, rate: 2.10 },
+    { id: 't3', upToKm: 999, rate: 1.80 },
+  ],
 };
 
 const INITIAL_CONFIGS: Record<string, VehiclePricingConfig> = {
@@ -69,6 +73,83 @@ const INITIAL_GLOBAL_SURGE: SurgeRule[] = [
     isActive: true 
   }
 ];
+
+// Interactive Map Picker Component
+const MapPicker: React.FC<{ lat: number; lng: number; radius: number; onChange: (lat: number, lng: number) => void }> = ({ lat, lng, radius, onChange }) => {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const circleRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    // Initialize Leaflet Map
+    if (!mapInstanceRef.current) {
+      const L = (window as any).L;
+      if (!L) return;
+
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: false,
+        attributionControl: false,
+      }).setView([lat, lng], 14);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      const circle = L.circle([lat, lng], {
+        radius: radius,
+        color: '#2563eb',
+        fillColor: '#2563eb',
+        fillOpacity: 0.1,
+        weight: 1
+      }).addTo(map);
+
+      marker.on('drag', (e: any) => {
+        const { lat, lng } = e.target.getLatLng();
+        circle.setLatLng([lat, lng]);
+        onChange(lat, lng);
+      });
+
+      map.on('click', (e: any) => {
+        const { lat, lng } = e.latlng;
+        marker.setLatLng([lat, lng]);
+        circle.setLatLng([lat, lng]);
+        onChange(lat, lng);
+      });
+
+      mapInstanceRef.current = map;
+      markerRef.current = marker;
+      circleRef.current = circle;
+
+      // Force redraw after a short delay for modal animations
+      setTimeout(() => map.invalidateSize(), 100);
+    } else {
+      markerRef.current.setLatLng([lat, lng]);
+      circleRef.current.setLatLng([lat, lng]);
+      circleRef.current.setRadius(radius);
+    }
+  }, [lat, lng, radius]);
+
+  return (
+    <div className="relative w-full h-64 rounded-[20px] overflow-hidden border border-gray-100 shadow-inner group">
+      <div ref={mapContainerRef} className="w-full h-full" />
+      <div className="absolute top-4 left-4 z-[100] px-3 py-1.5 bg-white/90 backdrop-blur shadow-sm border border-gray-100 rounded-full flex items-center gap-2">
+        <Crosshair size={14} className="text-blue-600" />
+        <span className="text-[10px] font-black uppercase text-gray-900 tracking-widest">Interactive Placement</span>
+      </div>
+      <div className="absolute bottom-4 left-4 z-[100] px-3 py-1.5 bg-gray-900/90 backdrop-blur shadow-sm border border-white/10 rounded-full">
+        <span className="text-[9px] font-bold text-white tracking-widest leading-none">
+          {lat.toFixed(4)}, {lng.toFixed(4)}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
   const [activeMode, setActiveMode] = useState<'matrix' | 'dynamic' | 'setup'>('matrix');
@@ -144,7 +225,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
                  className="p-1.5 bg-gray-100 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all group relative"
                >
                  <HelpCircle size={18} />
-                 <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity font-bold uppercase tracking-widest">Pricing Policy Info</span>
                </button>
                {isCurrentViewLocked && (
                  <span className="flex items-center space-x-1 px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-[10px] font-black uppercase tracking-widest border border-gray-200 animate-in fade-in zoom-in-90">
@@ -178,16 +258,15 @@ export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
                 onClick={() => setActiveMode('dynamic')}
                 className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeMode === 'dynamic' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
               >
-                <Zap size={14} /> <span>Dynamic Pricing</span>
+                <Zap size={14} /> <span>Dynamic</span>
               </button>
               <button 
                 onClick={() => setActiveMode('setup')}
                 className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeMode === 'setup' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
               >
-                <Layers size={14} /> <span>Setup Areas</span>
+                <Layers size={14} /> <span>Setup</span>
               </button>
            </div>
-           <div className="h-10 w-px bg-gray-200" />
            
            <button 
              onClick={toggleLock}
@@ -286,38 +365,11 @@ export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
               <div className="pl-4">
                 Max( <span className="text-blue-900 font-bold">Minimum Fare</span>, <br/>
                 &nbsp;&nbsp;(<span className="text-blue-900">Base Fare</span> + <br/>
-                &nbsp;&nbsp;(<span className="text-blue-900">Dist</span> × <span className="text-blue-900">Rate/Km</span>) + <br/>
+                &nbsp;&nbsp;<span className="text-blue-600 italic font-bold">Sum of Distance Tiered Slabs</span> + <br/>
                 &nbsp;&nbsp;(<span className="text-blue-900">Time</span> × <span className="text-blue-900">Rate/Min</span>) + <br/>
                 &nbsp;&nbsp;<span className="text-blue-600 italic font-bold">Active Time-Gated Hub Fees</span> + <br/>
                 &nbsp;&nbsp;<span className="text-yellow-600 italic font-bold">Active Night Premium</span>) × <span className="text-blue-600 font-black">Dynamic Multiplier</span><br/>
-                ) + <span className="text-blue-900">Wait Fees</span> + <span className="text-blue-900">Tax</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <h5 className="text-xs font-black text-gray-400 uppercase tracking-widest">Key Configuration Rules</h5>
-            <div className="grid grid-cols-1 gap-4">
-              <div className="flex items-start gap-4">
-                <div className="p-2 bg-gray-100 rounded-lg text-blue-600"><Moon size={16}/></div>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Individual Night Premiums</p>
-                  <p className="text-xs text-gray-500 leading-relaxed">Each vehicle type in each city has its own togglable Night Surcharge with adjustable start/end windows.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="p-2 bg-gray-100 rounded-lg text-blue-600"><Clock size={16}/></div>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Time-Filtered Hubs</p>
-                  <p className="text-xs text-gray-500 leading-relaxed">Hub fees can be scheduled (e.g., higher airport entry fees during midnight shifts).</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="p-2 bg-gray-100 rounded-lg text-blue-600"><Lock size={16}/></div>
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Per-Vehicle Locking</p>
-                  <p className="text-xs text-gray-500 leading-relaxed">Saving a vehicle's pricing locks only that specific view. Switching vehicles allows independent editing/saving.</p>
-                </div>
+                ) + <span className="text-blue-900 italic font-bold">Wait Fees</span> + <span className="text-blue-900">Tax</span>
               </div>
             </div>
           </div>
@@ -345,130 +397,347 @@ const TabItem: React.FC<{ active: boolean; onClick: () => void; label: string; i
 );
 
 const RateCardView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Partial<VehiclePricingConfig>) => void; location: Location; disabled?: boolean }> = ({ config, onUpdate, location, disabled }) => {
-  const distance = 10;
-  const time = 15;
+  const [testDistance, setTestDistance] = useState(12);
+  const [testWaitDuration, setTestWaitDuration] = useState(8);
+  const tripTime = 15;
+
+  // Tiered Pricing Calculation (Slab Based)
+  const calculateTieredDistanceFare = (dist: number, tiers: DistanceTier[]) => {
+    let remainingDist = dist;
+    let totalFare = 0;
+    let lastUpTo = 0;
+    const sortedTiers = [...tiers].sort((a, b) => a.upToKm - b.upToKm);
+    const breakdown: { slab: string, km: number, rate: number, total: number }[] = [];
+
+    for (const tier of sortedTiers) {
+      if (remainingDist <= 0) break;
+      const slabMax = tier.upToKm - lastUpTo;
+      const kmInThisSlab = Math.min(remainingDist, slabMax);
+      const slabTotal = kmInThisSlab * tier.rate;
+      
+      totalFare += slabTotal;
+      breakdown.push({ 
+        slab: `${lastUpTo} - ${tier.upToKm === 999 ? '∞' : tier.upToKm} km`, 
+        km: kmInThisSlab, 
+        rate: tier.rate, 
+        total: slabTotal 
+      });
+      
+      remainingDist -= kmInThisSlab;
+      lastUpTo = tier.upToKm;
+    }
+
+    return { totalFare, breakdown };
+  };
+
+  const { totalFare: distanceFare, breakdown: slabsBreakdown } = calculateTieredDistanceFare(testDistance, config.distanceTiers);
   const surchargeTotal = config.nightSurchargeActive ? config.nightSurcharge : 0;
-  const calculatedFare = config.baseFare + (distance * config.ratePerKm) + (time * config.ratePerMin) + surchargeTotal;
-  const finalFare = Math.max(config.minFare, calculatedFare);
+  
+  // Wait Charges Calculation
+  const billableWaitMinutes = Math.max(0, testWaitDuration - config.safeWaitTime);
+  const totalWaitCharge = billableWaitMinutes * config.waitRate;
+
+  const calculatedTripFare = config.baseFare + distanceFare + (tripTime * config.ratePerMin) + surchargeTotal;
+  const tripWithMinFare = Math.max(config.minFare, calculatedTripFare);
+  const finalFare = tripWithMinFare + totalWaitCharge;
+
+  const addTier = () => {
+    const newTier: DistanceTier = { 
+      id: Date.now().toString(), 
+      upToKm: (config.distanceTiers[config.distanceTiers.length - 1]?.upToKm || 0) + 10, 
+      rate: config.ratePerKm 
+    };
+    onUpdate({ distanceTiers: [...config.distanceTiers, newTier] });
+  };
+
+  const removeTier = (id: string) => {
+    onUpdate({ distanceTiers: config.distanceTiers.filter(t => t.id !== id) });
+  };
+
+  const updateTier = (id: string, updates: Partial<DistanceTier>) => {
+    onUpdate({
+      distanceTiers: config.distanceTiers.map(t => t.id === id ? { ...t, ...updates } : t)
+    });
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 animate-in fade-in slide-in-from-bottom-4 duration-400">
        <div className="lg:col-span-8 space-y-12">
+          {/* Core Settings */}
           <section>
              <div className="flex items-center space-x-4 mb-10">
                 <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><Timer size={24} /></div>
                 <div>
-                   <h3 className="text-xl font-black text-gray-900 tracking-tight">Standard Unit Rates</h3>
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">Core billing parameters</p>
+                   <h3 className="text-xl font-black text-gray-900 tracking-tight">Core Trip Settings</h3>
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">Primary pricing parameters</p>
                 </div>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
                 <Input 
-                  label={`Base Fare (${location.currency})`} 
-                  info="The initial cost charged at the start of every trip before any distance or time is added."
+                  label={`Base Flagfall (${location.currency})`} 
+                  info="The initial cost charged at the start of every trip."
                   type="number" step="0.01" value={config.baseFare} 
                   disabled={disabled}
                   onChange={e => onUpdate({ baseFare: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
                   label={`Minimum Fare (${location.currency})`} 
-                  info="The absolute floor price for any trip. If calculated fare is lower, this will be charged."
+                  info="The floor price for any trip."
                   type="number" step="0.01" value={config.minFare} 
                   disabled={disabled}
                   onChange={e => onUpdate({ minFare: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
-                  label={`Rate per Km (${location.currency})`} 
-                  info="Charge applied for every kilometer traveled during the trip."
-                  type="number" step="0.01" value={config.ratePerKm} 
-                  disabled={disabled}
-                  onChange={e => onUpdate({ ratePerKm: parseFloat(e.target.value) || 0 })} 
-                />
-                <Input 
-                  label={`Rate per Min (${location.currency})`} 
-                  info="Charge applied for every minute elapsed during the trip journey."
+                  label={`Rate per Minute (${location.currency})`} 
+                  info="Charge applied for every minute elapsed during the trip."
                   type="number" step="0.01" value={config.ratePerMin} 
                   disabled={disabled}
                   onChange={e => onUpdate({ ratePerMin: parseFloat(e.target.value) || 0 })} 
                 />
+                <Input 
+                  label={`Standard Rate/Km (Fallback)`} 
+                  info="Used if no distance tiers match."
+                  type="number" step="0.01" value={config.ratePerKm} 
+                  disabled={disabled}
+                  onChange={e => onUpdate({ ratePerKm: parseFloat(e.target.value) || 0 })} 
+                />
              </div>
           </section>
 
+          {/* Operational Settings (Wait Time & Cancel) */}
           <section className="pt-12 border-t border-gray-100">
              <div className="flex items-center space-x-4 mb-10">
-                <div className="p-3 bg-orange-50 rounded-2xl text-orange-600"><Shield size={24} /></div>
+                <div className="p-3 bg-amber-50 rounded-2xl text-amber-600"><Coffee size={24} /></div>
                 <div>
-                   <h3 className="text-xl font-black text-gray-900 tracking-tight">Waiting & Platform Fees</h3>
+                   <h3 className="text-xl font-black text-gray-900 tracking-tight">Wait & Cancellation Policy</h3>
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">Automated wait logic and drop fees</p>
                 </div>
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <Input 
-                  label="Free Wait Time (Mins)" 
-                  info="Grace period where the driver waits for the passenger at no extra cost."
-                  type="number" value={config.safeWaitTime} 
-                  disabled={disabled}
-                  onChange={e => onUpdate({ safeWaitTime: parseInt(e.target.value) || 0 })} 
-                />
-                <Input 
-                  label="Wait Rate / Min" 
-                  info="The per-minute fee charged once the Free Wait Time has expired."
+                  label={`Wait Rate / Min (${location.currency})`} 
+                  info="Cost applied for every minute the driver waits at the pickup location."
                   type="number" step="0.01" value={config.waitRate} 
                   disabled={disabled}
                   onChange={e => onUpdate({ waitRate: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
-                  label="Platform Commission (%)" 
-                  info="Percentage of the total fare that the platform takes as a service fee."
-                  type="number" step="0.1" value={config.commission} 
+                  label="Free Wait Time (Min)" 
+                  info="The number of minutes a driver must wait for free before charges begin."
+                  type="number" value={config.safeWaitTime} 
                   disabled={disabled}
-                  onChange={e => onUpdate({ commission: parseFloat(e.target.value) || 0 })} 
+                  onChange={e => onUpdate({ safeWaitTime: parseInt(e.target.value) || 0 })} 
                 />
                 <Input 
-                  label="Service Tax Rate (%)" 
-                  info="Local regulatory tax percentage added on top of the final trip fare."
-                  type="number" step="0.1" value={config.tax} 
+                  label={`Cancel Fee (${location.currency})`} 
+                  info="Flat fee charged to the user for cancelling a ride after a certain point."
+                  type="number" step="0.01" value={config.cancelFee} 
                   disabled={disabled}
-                  onChange={e => onUpdate({ tax: parseFloat(e.target.value) || 0 })} 
+                  onChange={e => onUpdate({ cancelFee: parseFloat(e.target.value) || 0 })} 
                 />
+             </div>
+          </section>
+
+          {/* Distance Tiers */}
+          <section className="pt-12 border-t border-gray-100">
+             <div className="flex items-center justify-between mb-10">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600"><Layers size={24} /></div>
+                  <div>
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">Tiered Distance Tiers</h3>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">Non-linear distance billing</p>
+                  </div>
+                </div>
+                {!disabled && (
+                  <Button variant="ghost" size="sm" icon={<Plus size={16} />} onClick={addTier} className="text-indigo-600 hover:bg-indigo-50 font-black uppercase text-[10px] tracking-widest">Add Tier</Button>
+                )}
+             </div>
+
+             <div className="space-y-4">
+                {config.distanceTiers.sort((a,b) => a.upToKm - b.upToKm).map((tier, idx) => (
+                  <div key={tier.id} className="flex items-center gap-6 p-6 bg-gray-50 rounded-[24px] border border-gray-100 group">
+                    <div className="flex-1 grid grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Up to distance (km)</label>
+                        <div className="relative">
+                          <input 
+                            type="number" 
+                            value={tier.upToKm} 
+                            disabled={disabled}
+                            onChange={(e) => updateTier(tier.id, { upToKm: parseFloat(e.target.value) || 0 })}
+                            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none" 
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 uppercase">KM</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Rate per KM</label>
+                        <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">{location.currency}</span>
+                           <input 
+                            type="number" 
+                            step="0.01"
+                            value={tier.rate} 
+                            disabled={disabled}
+                            onChange={(e) => updateTier(tier.id, { rate: parseFloat(e.target.value) || 0 })}
+                            className="w-full bg-white border border-gray-200 rounded-xl pl-12 pr-4 py-2.5 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 outline-none" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {!disabled && config.distanceTiers.length > 1 && (
+                      <button onClick={() => removeTier(tier.id)} className="p-2.5 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-xl shadow-sm border border-gray-100 opacity-0 group-hover:opacity-100"><Trash size={16} /></button>
+                    )}
+                  </div>
+                ))}
+             </div>
+          </section>
+
+          {/* Fees */}
+          <section className="pt-12 border-t border-gray-100">
+             <div className="flex items-center space-x-4 mb-10">
+                <div className="p-3 bg-orange-50 rounded-2xl text-orange-600"><Shield size={24} /></div>
+                <div>
+                   <h3 className="text-xl font-black text-gray-900 tracking-tight">System & Platform Fees</h3>
+                </div>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+                <Input label="Platform Commission (%)" type="number" step="0.1" value={config.commission} disabled={disabled} onChange={e => onUpdate({ commission: parseFloat(e.target.value) || 0 })} />
+                <Input label="Regulatory Tax (%)" type="number" step="0.1" value={config.tax} disabled={disabled} onChange={e => onUpdate({ tax: parseFloat(e.target.value) || 0 })} />
              </div>
           </section>
        </div>
 
+       {/* Enhanced Fare Breakdown Insight */}
        <div className="lg:col-span-4">
           <div className="sticky top-8 space-y-6">
-            <div className={`bg-gray-900 text-white p-8 rounded-[40px] shadow-2xl relative overflow-hidden transition-all duration-500 ${disabled ? 'scale-[0.98] ring-4 ring-blue-500/20' : ''}`}>
+            <div className={`bg-gray-900 text-white p-8 rounded-[40px] shadow-2xl relative overflow-hidden transition-all duration-500`}>
                <div className="relative z-10">
-                  <h4 className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-6 flex items-center">
-                     <Calculator size={14} className="mr-3" /> Live Calculation Insight
-                  </h4>
-                  <div className="space-y-4">
-                     <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                        <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-1">Demo Ride: 10 KM • 15 Mins</p>
-                        <p className="text-xs font-bold text-blue-400 flex items-center">
-                          <Check size={12} className="mr-1" /> {config.safeWaitTime}m Free Wait period
-                        </p>
-                     </div>
+                  <div className="flex justify-between items-center mb-8">
+                    <h4 className="text-[10px] font-black uppercase text-blue-400 tracking-widest flex items-center">
+                       <Calculator size={14} className="mr-3" /> Fare Insight Engine
+                    </h4>
+                    <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-black tracking-widest text-white/50">LIVE TEST</span>
+                  </div>
+
+                  {/* Simulator Controls */}
+                  <div className="mb-8 p-5 bg-white/5 rounded-3xl border border-white/10 space-y-6">
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-black uppercase text-gray-500 tracking-widest flex justify-between">
+                        <span className="flex items-center gap-2"><Navigation size={10} /> Test Distance</span>
+                        <span className="text-blue-400 font-bold">{testDistance} KM</span>
+                       </label>
+                       <input type="range" min="1" max="100" value={testDistance} onChange={e => setTestDistance(parseInt(e.target.value))} className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-400" />
+                    </div>
+                    
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-black uppercase text-gray-500 tracking-widest flex justify-between">
+                        <span className="flex items-center gap-2"><Clock size={10} /> Wait Duration</span>
+                        <span className="text-amber-400 font-bold">{testWaitDuration} Min</span>
+                       </label>
+                       <input type="range" min="0" max="30" value={testWaitDuration} onChange={e => setTestWaitDuration(parseInt(e.target.value))} className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-amber-400" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-5">
                      <div className="space-y-3">
-                        <div className="flex justify-between items-center text-sm text-gray-400">
-                           <span>Base + Units</span>
-                           <span className="font-bold text-white">{location.currency} {(config.baseFare + distance * config.ratePerKm + time * config.ratePerMin).toFixed(2)}</span>
+                        <div className="flex justify-between items-center text-sm font-medium">
+                           <span className="text-gray-400">Base Start Fee</span>
+                           <span className="text-white">{location.currency} {config.baseFare.toFixed(2)}</span>
                         </div>
+                        
+                        {/* Distance Tiers Breakdown */}
+                        <div className="space-y-2 pt-2 border-t border-white/5">
+                           <span className="block text-[10px] font-black text-gray-500 uppercase tracking-widest">Distance Slabs ({testDistance}km)</span>
+                           {slabsBreakdown.map((slab, i) => (
+                             <div key={i} className="flex justify-between items-center text-[12px]">
+                                <span className="text-gray-400 flex items-center">
+                                  <div className="w-1 h-1 bg-indigo-400 rounded-full mr-2" />
+                                  {slab.slab} ({slab.km}km × {slab.rate.toFixed(2)})
+                                </span>
+                                <span className="font-bold text-indigo-300">{location.currency} {slab.total.toFixed(2)}</span>
+                             </div>
+                           ))}
+                        </div>
+
+                        {/* Trip Time Fee */}
+                        <div className="flex justify-between items-center text-[12px] pt-2 border-t border-white/5">
+                           <span className="text-gray-400">Trip Time Fee (15m × {config.ratePerMin.toFixed(2)})</span>
+                           <span className="text-white font-medium">{location.currency} {(15 * config.ratePerMin).toFixed(2)}</span>
+                        </div>
+
+                        {/* Wait Charges Breakdown */}
+                        {totalWaitCharge > 0 && (
+                          <div className="flex justify-between items-center text-[12px] pt-2 border-t border-white/5">
+                             <span className="text-amber-400 flex items-center gap-2">
+                                <Coffee size={12} /> Billable Wait ({billableWaitMinutes}m × {config.waitRate.toFixed(2)})
+                             </span>
+                             <span className="text-amber-300 font-bold">{location.currency} {totalWaitCharge.toFixed(2)}</span>
+                          </div>
+                        )}
+
                         {config.nightSurchargeActive && (
-                        <div className="flex justify-between items-center text-sm">
-                           <span className="text-yellow-400 flex items-center"><Moon size={12} className="mr-1" /> Night Premium</span>
+                        <div className="flex justify-between items-center text-[12px] pt-2 border-t border-white/5">
+                           <span className="text-yellow-400 flex items-center font-bold">
+                             <Moon size={12} className="mr-1.5" /> Night Shift Premium
+                           </span>
                            <span className="font-bold text-white">{location.currency} {config.nightSurcharge.toFixed(2)}</span>
                         </div>
                         )}
-                        <div className="h-px bg-white/10 my-4" />
+                     </div>
+
+                     <div className="h-px bg-white/10 my-4" />
+                     
+                     <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                           <span className="text-gray-400 text-sm">Customer Pays</span>
-                           <div className="text-right">
-                             <span className="block text-2xl font-black text-blue-400">{location.currency} {finalFare.toFixed(2)}</span>
+                           <div className="flex flex-col">
+                             <span className="text-gray-400 text-sm">Final Estimated Fare</span>
+                             <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest italic">Includes all overrides</span>
                            </div>
+                           <div className="text-right">
+                             <span className="block text-4xl font-black text-blue-400">{location.currency} {finalFare.toFixed(2)}</span>
+                           </div>
+                        </div>
+                        {calculatedTripFare < config.minFare && (
+                          <div className="p-2.5 bg-blue-400/10 border border-blue-400/20 rounded-xl">
+                            <p className="text-[10px] text-blue-400 font-black uppercase text-center tracking-widest flex items-center justify-center gap-2">
+                              <AlertTriangle size={12} /> Min Trip Fare Applied ({location.currency}{config.minFare.toFixed(2)})
+                            </p>
+                          </div>
+                        )}
+                     </div>
+
+                     <div className="pt-6 border-t border-white/10 flex gap-4">
+                        <div className="flex-1 text-center">
+                           <span className="block text-[9px] font-black text-gray-500 uppercase tracking-widest">Platform Take</span>
+                           <span className="text-xs font-bold text-white">{location.currency} {((finalFare * config.commission) / 100).toFixed(2)}</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/10" />
+                        <div className="flex-1 text-center">
+                           <span className="block text-[9px] font-black text-gray-500 uppercase tracking-widest">Service Tax</span>
+                           <span className="text-xs font-bold text-white">{location.currency} {((finalFare * config.tax) / 100).toFixed(2)}</span>
                         </div>
                      </div>
                   </div>
                </div>
+            </div>
+            
+            <div className="p-6 bg-white border border-gray-200 rounded-[32px] shadow-sm">
+               <h5 className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4">Pricing Strategy Detail</h5>
+               <ul className="space-y-3">
+                  <li className="flex gap-3 items-start">
+                     <div className="p-1.5 bg-green-50 text-green-600 rounded-lg"><Check size={12}/></div>
+                     <p className="text-[11px] text-gray-600 font-medium">Wait charges kick in after <span className="font-bold text-gray-900">{config.safeWaitTime} minutes</span> of arrival.</p>
+                  </li>
+                  <li className="flex gap-3 items-start">
+                     <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Check size={12}/></div>
+                     <p className="text-[11px] text-gray-600 font-medium italic">Wait fees are added <span className="font-black">after</span> the minimum fare check.</p>
+                  </li>
+                  <li className="flex gap-3 items-start">
+                     <div className="p-1.5 bg-red-50 text-red-600 rounded-lg"><AlertTriangle size={12}/></div>
+                     <p className="text-[11px] text-gray-600 font-medium">Cancellation fee is currently set to <span className="font-black text-gray-900">{location.currency}{config.cancelFee.toFixed(2)}</span>.</p>
+                  </li>
+               </ul>
             </div>
           </div>
        </div>
@@ -610,22 +879,11 @@ const SurchargeView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Part
 
        <Modal isOpen={modalState.open} onClose={() => setModalState({ open: false })} title={modalState.editId ? "Modify Hub Rule" : "Initialize Hub Premium"}>
           <div className="space-y-6">
-             <Select 
-               label="Operational Zone" 
-               info="The geographical hub where this extra charge will be triggered."
-               options={availableZones.map(z => ({ value: z.id, label: z.name }))} 
-               value={formData.zoneId} 
-               onChange={e => setFormData({...formData, zoneId: e.target.value})} 
-             />
-             <Input 
-               label={`Flat Surcharge (${location.currency})`} 
-               info="The amount added to trips that originate in or traverse this hub."
-               type="number" step="0.01" value={formData.amount} 
-               onChange={e => setFormData({...formData, amount: parseFloat(e.target.value)})} 
-             />
+             <Select label="Operational Zone" options={availableZones.map(z => ({ value: z.id, label: z.name }))} value={formData.zoneId} onChange={e => setFormData({...formData, zoneId: e.target.value})} />
+             <Input label={`Flat Surcharge (${location.currency})`} type="number" step="0.01" value={formData.amount} onChange={e => setFormData({...formData, amount: parseFloat(e.target.value)})} />
              <div className="grid grid-cols-2 gap-4">
-               <Input label="Activation Time" info="Start time for this hub surcharge." type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
-               <Input label="Expiry Time" info="End time for this hub surcharge." type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
+               <Input label="Activation Time" type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
+               <Input label="Expiry Time" type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
              </div>
              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
                 <span className="text-sm font-bold text-gray-900">Active Monitoring</span>
@@ -644,16 +902,9 @@ const SurchargeView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Part
   );
 };
 
-const DynamicPricingHub: React.FC<{ 
-  rules: SurgeRule[]; 
-  setRules: React.Dispatch<React.SetStateAction<SurgeRule[]>>; 
-  availableLocations: Location[];
-  disabled?: boolean;
-}> = ({ rules, setRules, availableLocations, disabled }) => {
+const DynamicPricingHub: React.FC<{ rules: SurgeRule[]; setRules: React.Dispatch<React.SetStateAction<SurgeRule[]>>; availableLocations: Location[]; disabled?: boolean; }> = ({ rules, setRules, availableLocations, disabled }) => {
   const [modalState, setModalState] = useState<{ open: boolean; editId?: string }>({ open: false });
-  const [formData, setFormData] = useState<Partial<SurgeRule>>({ 
-    name: '', multiplier: 1.5, locationIds: [], vehicleTypes: [], startTime: '09:00', endTime: '18:00', isActive: true 
-  });
+  const [formData, setFormData] = useState<Partial<SurgeRule>>({ name: '', multiplier: 1.5, locationIds: [], vehicleTypes: [], startTime: '09:00', endTime: '18:00', isActive: true });
 
   const handleOpen = (rule?: SurgeRule) => {
     if (disabled) return;
@@ -668,7 +919,6 @@ const DynamicPricingHub: React.FC<{
 
   const handleSave = () => {
     if (!formData.name || formData.locationIds?.length === 0 || formData.vehicleTypes?.length === 0) return;
-    
     if (modalState.editId) {
        setRules(rules.map(r => r.id === modalState.editId ? { ...r, ...formData } as SurgeRule : r));
     } else {
@@ -722,7 +972,7 @@ const DynamicPricingHub: React.FC<{
        <div className="flex items-center justify-between">
           <div>
             <h3 className="text-2xl font-black text-gray-900 tracking-tight">Global Demand Triggers</h3>
-            <p className="text-sm text-gray-400 font-medium">Coordinate dynamic pricing across global markets and fleets.</p>
+            <p className="text-sm text-gray-400 font-medium italic">Apply multipliers based on real-time traffic and peak event data.</p>
           </div>
           {!disabled && (
             <Button variant="black" icon={<Plus size={18} />} onClick={() => handleOpen()} className="rounded-2xl h-12 px-8 shadow-lg">Launch New Surge</Button>
@@ -735,38 +985,24 @@ const DynamicPricingHub: React.FC<{
                <div className="flex justify-between items-start mb-8">
                   <div className="p-4 bg-yellow-50 text-yellow-600 rounded-[20px] shadow-sm"><Zap size={32} /></div>
                   <div className={`flex gap-2 transition-all translate-x-2 group-hover:translate-x-0 ${disabled ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
-                     <button onClick={() => handleOpen(rule)} className="p-3 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-xl transition-all"><Edit2 size={18} /></button>
-                     <button onClick={() => removeRule(rule.id)} className="p-3 text-gray-300 hover:text-red-500 bg-gray-50 rounded-xl transition-all"><Trash2 size={18} /></button>
+                     <button onClick={() => handleOpen(rule)} className="p-3 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-xl transition-all shadow-sm"><Edit2 size={18} /></button>
+                     <button onClick={() => removeRule(rule.id)} className="p-3 text-gray-300 hover:text-red-500 bg-gray-50 rounded-xl transition-all shadow-sm"><Trash2 size={18} /></button>
                   </div>
                </div>
-
                <h4 className="text-2xl font-black text-gray-900 mb-2">{rule.name}</h4>
-               <div className="flex items-baseline gap-3 mb-10">
+               <div className="flex items-baseline gap-3 mb-8">
                   <span className="text-6xl font-black text-gray-900 tracking-tighter">{rule.multiplier}</span>
                   <span className="text-3xl font-black text-yellow-500">x</span>
                </div>
-
-               <div className="grid grid-cols-2 gap-8 mb-10">
-                  <div className="space-y-3">
-                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Scope</span>
-                     <div className="flex flex-wrap gap-1.5">
-                        {rule.locationIds.map(locId => (
-                          <span key={locId} className="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-tight">
-                            {availableLocations.find(l => l.id === locId)?.name}
-                          </span>
-                        ))}
-                     </div>
-                  </div>
-                  <div className="space-y-3">
-                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Fleets</span>
-                     <div className="flex flex-wrap gap-1.5">
-                        {rule.vehicleTypes.map(v => (
-                          <span key={v} className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-black uppercase tracking-tight">
-                            {v.replace('_', ' ')}
-                          </span>
-                        ))}
-                     </div>
-                  </div>
+               
+               <div className="flex flex-wrap gap-2 mb-8">
+                  {rule.locationIds.map(locId => {
+                    const loc = availableLocations.find(l => l.id === locId);
+                    return <span key={locId} className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest">{loc?.name}</span>;
+                  })}
+                  {rule.vehicleTypes.map(vType => (
+                    <span key={vType} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-[10px] font-black uppercase tracking-widest">{vType.replace('_', ' ')}</span>
+                  ))}
                </div>
 
                <div className="flex items-center justify-between border-t border-gray-100 pt-8">
@@ -785,35 +1021,36 @@ const DynamicPricingHub: React.FC<{
        </div>
 
        <Modal isOpen={modalState.open} onClose={() => setModalState({ open: false })} title={modalState.editId ? "Edit Global Surge" : "New Dynamic Trigger"}>
-          <div className="space-y-8">
+          <div className="space-y-8 max-h-[70vh] overflow-y-auto pr-2 no-scrollbar">
              <Input label="Event Name" placeholder="e.g. Festival Rush" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-             <div className="grid grid-cols-2 gap-6">
-                <Input label="Multiplier Factor" info="The multiplication factor applied to the base trip cost during surge." type="number" step="0.1" value={formData.multiplier} onChange={e => setFormData({...formData, multiplier: parseFloat(e.target.value)})} />
-                <div className="grid grid-cols-2 gap-3">
-                   <Input label="Commences" info="Start time for surge." type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
-                   <Input label="Concludes" info="End time for surge." type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
-                </div>
+             <Input label="Multiplier Factor" type="number" step="0.1" value={formData.multiplier} onChange={e => setFormData({...formData, multiplier: parseFloat(e.target.value)})} />
+             
+             <MultiSelect 
+               label="Affected Locations" 
+               options={availableLocations.map(l => ({ id: l.id, name: l.name }))} 
+               selected={formData.locationIds || []}
+               onToggle={id => {
+                 const current = formData.locationIds || [];
+                 setFormData({...formData, locationIds: current.includes(id) ? current.filter(x => x !== id) : [...current, id]});
+               }}
+             />
+
+             <MultiSelect 
+               label="Affected Vehicle Types" 
+               options={Object.values(VehicleType).map(v => ({ id: v, name: v.replace('_', ' ') }))} 
+               selected={formData.vehicleTypes || []}
+               onToggle={id => {
+                 const current = formData.vehicleTypes || [];
+                 const vId = id as VehicleType;
+                 setFormData({...formData, vehicleTypes: current.includes(vId) ? current.filter(x => x !== vId) : [...current, vId]});
+               }}
+             />
+
+             <div className="grid grid-cols-2 gap-4">
+                <Input label="Starts At" type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
+                <Input label="Ends At" type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
              </div>
-             <MultiSelect 
-                label="Target Markets" 
-                options={availableLocations.map(l => ({ id: l.id, name: l.name }))} 
-                selected={formData.locationIds || []} 
-                onToggle={(id) => {
-                  const current = formData.locationIds || [];
-                  const next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
-                  setFormData({...formData, locationIds: next});
-                }} 
-             />
-             <MultiSelect 
-                label="Target Vehicle Classes" 
-                options={Object.values(VehicleType).map(t => ({ id: t, name: t.replace('_', ' ') }))} 
-                selected={formData.vehicleTypes || []} 
-                onToggle={(id) => {
-                  const current = formData.vehicleTypes || [];
-                  const next = current.includes(id as VehicleType) ? current.filter(x => x !== id) : [...current, id as VehicleType];
-                  setFormData({...formData, vehicleTypes: next as VehicleType[]});
-                }} 
-             />
+
              <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
                 <Button variant="secondary" onClick={() => setModalState({ open: false })}>Discard</Button>
                 <Button variant="black" onClick={handleSave}>{modalState.editId ? 'Commit Logic' : 'Activate Surge'}</Button>
@@ -824,13 +1061,7 @@ const DynamicPricingHub: React.FC<{
   );
 };
 
-const MarketSetup: React.FC<{ 
-  locations: Location[]; setLocations: React.Dispatch<React.SetStateAction<Location[]>>; 
-  zones: OperationalZone[]; setZones: React.Dispatch<React.SetStateAction<OperationalZone[]>>;
-  selectedLocationId: string;
-  setSelectedLocationId: (id: string) => void;
-  disabled?: boolean;
-}> = ({ locations, setLocations, zones, setZones, selectedLocationId, setSelectedLocationId, disabled }) => {
+const MarketSetup: React.FC<{ locations: Location[]; setLocations: React.Dispatch<React.SetStateAction<Location[]>>; zones: OperationalZone[]; setZones: React.Dispatch<React.SetStateAction<OperationalZone[]>>; selectedLocationId: string; setSelectedLocationId: (id: string) => void; disabled?: boolean; }> = ({ locations, setLocations, zones, setZones, selectedLocationId, setSelectedLocationId, disabled }) => {
   const [locModal, setLocModal] = useState<{ open: boolean; editId?: string }>({ open: false });
   const [zoneModal, setZoneModal] = useState<{ open: boolean; editId?: string }>({ open: false });
   const [locData, setLocData] = useState<Partial<Location>>({ name: '', country: '', currency: 'USD' });
@@ -894,12 +1125,18 @@ const MarketSetup: React.FC<{
     setZones(zones.map(z => z.id === id ? { ...z, isActive: !z.isActive } : z));
   };
 
+  const removeLocation = (id: string) => {
+    if (disabled || locations.length <= 1) return;
+    setLocations(locations.filter(l => l.id !== id));
+    if (selectedLocationId === id) setSelectedLocationId(locations[0].id);
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 animate-in fade-in slide-in-from-right-8 duration-500 pb-20">
        <div className="lg:col-span-4 space-y-8">
           <div className="bg-white p-8 rounded-[40px] border border-gray-200 shadow-sm transition-opacity">
              <div className="flex justify-between items-center mb-10">
-                <h3 className="text-lg font-black text-gray-900 tracking-tight uppercase tracking-widest text-[11px]">Active Hubs</h3>
+                <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-400">Active Markets</h3>
                 {!disabled && (
                   <Button size="sm" variant="ghost" className="text-blue-600 font-black hover:bg-blue-50 rounded-xl" onClick={() => handleOpenLoc()}><Plus size={20} /></Button>
                 )}
@@ -907,20 +1144,23 @@ const MarketSetup: React.FC<{
              <div className="space-y-3">
                 {locations.map(loc => (
                    <div key={loc.id} className="relative group">
-                     <button 
-                       onClick={() => setSelectedLocationId(loc.id)}
-                       className={`w-full flex items-center justify-between p-5 rounded-2xl transition-all border ${selectedLocationId === loc.id ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-sm' : 'bg-gray-50 border-transparent text-gray-500 hover:border-gray-200'}`}
-                     >
+                     <button onClick={() => setSelectedLocationId(loc.id)} className={`w-full flex items-center justify-between p-5 rounded-2xl transition-all border ${selectedLocationId === loc.id ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-sm' : 'bg-gray-50 border-transparent text-gray-500 hover:border-gray-200'}`}>
                         <div className="flex items-center space-x-4">
                            <Globe size={18} className={selectedLocationId === loc.id ? 'text-blue-600' : 'text-gray-300'} />
-                           <span className="text-sm font-black tracking-tight">{loc.name}</span>
+                           <div className="text-left">
+                              <span className="block text-sm font-black tracking-tight">{loc.name}</span>
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{loc.currency} | {loc.country}</span>
+                           </div>
                         </div>
                         <ChevronRight size={14} className={selectedLocationId === loc.id ? 'opacity-100' : 'opacity-0'} />
                      </button>
                      {!disabled && (
-                       <div className="absolute right-12 top-1/2 -translate-y-1/2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={(e) => { e.stopPropagation(); handleOpenLoc(loc); }} className="p-2 text-gray-400 hover:text-blue-600 bg-white shadow-sm rounded-lg"><Edit2 size={14} /></button>
-                       </div>
+                        <div className="absolute top-1/2 -right-12 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all group-hover:right-4">
+                           <button onClick={() => handleOpenLoc(loc)} className="p-2 bg-white border border-gray-100 rounded-lg text-blue-600 shadow-sm hover:scale-110 transition-all"><Edit2 size={12} /></button>
+                           {locations.length > 1 && (
+                              <button onClick={() => removeLocation(loc.id)} className="p-2 bg-white border border-gray-100 rounded-lg text-red-500 shadow-sm hover:scale-110 transition-all"><Trash size={12} /></button>
+                           )}
+                        </div>
                      )}
                    </div>
                 ))}
@@ -945,18 +1185,21 @@ const MarketSetup: React.FC<{
                    <div key={zone.id} className={`p-8 bg-white rounded-[40px] border border-gray-100 group relative hover:shadow-xl transition-all border-b-4 border-b-transparent hover:border-b-blue-600 ${!zone.isActive ? 'grayscale opacity-60' : ''}`}>
                       <div className="flex justify-between items-start mb-6">
                          <div className="flex items-center space-x-4">
-                            <div className={`p-3 rounded-2xl shadow-sm group-hover:scale-110 transition-transform ${zone.isActive ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}><MapPin size={24} /></div>
+                            <div className={`p-3 rounded-2xl shadow-sm transition-transform ${zone.isActive ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}><MapPin size={24} /></div>
                             <h4 className="font-black text-gray-900 tracking-tight">{zone.name}</h4>
                          </div>
-                         <div className={`flex items-center space-x-1 transition-all translate-x-2 group-hover:translate-x-0 ${disabled ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
-                            <button onClick={() => handleOpenZone(zone)} className="p-2.5 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-xl transition-all shadow-sm"><Edit2 size={16} /></button>
-                         </div>
+                         <button onClick={() => handleOpenZone(zone)} className="p-2.5 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-xl opacity-0 group-hover:opacity-100 transition-all"><Edit2 size={16} /></button>
                       </div>
+                      
+                      <div className="space-y-1 mb-8">
+                         <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Coordinates</span>
+                         <span className="text-xs font-bold text-gray-900">{zone.lat.toFixed(4)}, {zone.lng.toFixed(4)}</span>
+                      </div>
+
                       <div className="flex items-center justify-between text-[11px] font-black text-gray-400 uppercase tracking-widest mt-auto pt-6 border-t border-gray-100">
                          <span className="flex items-center"><Layers size={14} className="mr-2 text-blue-500" />{zone.radius}m Detection Radius</span>
                          <div className="flex items-center space-x-3">
                             <span className={`flex items-center font-black ${zone.isActive ? 'text-blue-600' : 'text-gray-400'}`}>
-                               {zone.isActive ? <CheckCircle2 size={12} className="mr-1" /> : <AlertCircle size={12} className="mr-1" />}
                                {zone.isActive ? 'Active' : 'Inactive'}
                             </span>
                             {!disabled && (
@@ -973,13 +1216,11 @@ const MarketSetup: React.FC<{
           </div>
        </div>
 
-       <Modal isOpen={locModal.open} onClose={() => setLocModal({ open: false })} title={locModal.editId ? "Update Market Profile" : "Register Global Market"}>
+       <Modal isOpen={locModal.open} onClose={() => setLocModal({ open: false })} title={locModal.editId ? "Update Market" : "Register Market"}>
           <div className="space-y-6">
-             <Input label="Regional Name" info="Urban area name." placeholder="e.g. Barcelona" value={locData.name} onChange={e => setLocData({...locData, name: e.target.value})} />
-             <div className="grid grid-cols-2 gap-6">
-                <Input label="ISO Code" info="Country identifier." placeholder="e.g. ES" value={locData.country} onChange={e => setLocData({...locData, country: e.target.value})} />
-                <Input label="Standard Currency" info="Billing currency code." placeholder="e.g. EUR" value={locData.currency} onChange={e => setLocData({...locData, currency: e.target.value})} />
-             </div>
+             <Input label="Market Name" placeholder="e.g. New York City" value={locData.name} onChange={e => setLocData({...locData, name: e.target.value})} />
+             <Input label="Country Code" placeholder="e.g. USA" value={locData.country} onChange={e => setLocData({...locData, country: e.target.value})} />
+             <Input label="Local Currency" placeholder="e.g. USD" value={locData.currency} onChange={e => setLocData({...locData, currency: e.target.value})} />
              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <Button variant="secondary" onClick={() => setLocModal({ open: false })}>Discard</Button>
                 <Button variant="black" onClick={saveLoc}>Commit Market</Button>
@@ -987,31 +1228,30 @@ const MarketSetup: React.FC<{
           </div>
        </Modal>
 
-       <Modal isOpen={zoneModal.open} onClose={() => setZoneModal({ open: false })} title={zoneModal.editId ? "Update Geofence" : "Define New Area"}>
+       <Modal isOpen={zoneModal.open} onClose={() => setZoneModal({ open: false })} title="Geofence Specs">
           <div className="space-y-6">
-             <Input label="Area Identifier" info="Friendly name for geofence." placeholder="e.g. Airport Hub A" value={zoneData.name} onChange={e => setZoneData({...zoneData, name: e.target.value})} />
+             <Input label="Area Identifier" placeholder="e.g. Terminal 4 Hub" value={zoneData.name} onChange={e => setZoneData({...zoneData, name: e.target.value})} />
+             
              <div className="space-y-2">
-               <label className="text-sm font-black text-gray-400 uppercase tracking-widest">Select Map Coordinate</label>
-               <div className="w-full h-40 bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group cursor-crosshair shadow-inner" onClick={() => setZoneData({...zoneData, lat: 40.7 + Math.random()*0.1, lng: -74.0 + Math.random()*0.1})}>
-                 <MapIcon className="text-gray-400 group-hover:text-blue-500 mb-1 transition-transform group-hover:scale-110" size={24} />
-                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest relative z-10">Click Map to set center</span>
-                 {zoneData.lat && <div className="mt-2 text-[9px] font-mono text-blue-600 bg-white px-2 py-0.5 rounded-full border border-blue-100 shadow-sm">Lat: {zoneData.lat.toFixed(4)} • Lng: {zoneData.lng.toFixed(4)}</div>}
-               </div>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Map Selection</label>
+                <MapPicker 
+                  lat={zoneData.lat || 40.7128} 
+                  lng={zoneData.lng || -74.0060} 
+                  radius={zoneData.radius || 1000} 
+                  onChange={(lat, lng) => setZoneData({ ...zoneData, lat, lng })}
+                />
              </div>
-             <div className="space-y-4 p-6 bg-gray-50 rounded-[24px]">
-                <label className="text-xs font-black text-gray-500 uppercase tracking-widest flex justify-between items-center mb-2">
-                   <span>Operating Radius</span>
-                   <span className="text-blue-600 font-black text-lg">{zoneData.radius}m</span>
-                </label>
-                <input type="range" min="100" max="10000" step="100" value={zoneData.radius} onChange={e => setZoneData({...zoneData, radius: parseInt(e.target.value)})} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-             </div>
+
+             <Input label="Radius (Meters)" type="number" value={zoneData.radius} onChange={e => setZoneData({...zoneData, radius: parseInt(e.target.value)})} />
+             
              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-                <span className="text-sm font-bold text-gray-900">Status</span>
+                <span className="text-sm font-bold text-gray-900">Live Monitoring</span>
                 <label className="relative inline-flex items-center cursor-pointer">
                    <input type="checkbox" className="sr-only peer" checked={zoneData.isActive} onChange={() => setZoneData({...zoneData, isActive: !zoneData.isActive})} />
                    <div className="w-12 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-6"></div>
                 </label>
              </div>
+             
              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <Button variant="secondary" onClick={() => setZoneModal({ open: false })}>Discard</Button>
                 <Button variant="black" onClick={saveZone}>Finalize Geofence</Button>

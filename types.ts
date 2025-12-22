@@ -58,7 +58,7 @@ export interface DistanceTier {
 
 export interface VehiclePricingConfig {
   baseFare: number;
-  ratePerKm: number; // Used as fallback or base tier
+  ratePerKm: number; 
   ratePerMin: number;
   minFare: number;
   waitRate: number;
@@ -66,13 +66,8 @@ export interface VehiclePricingConfig {
   cancelFee: number;
   commission: number;
   tax: number;
-  nightSurcharge: number; 
-  nightSurchargeActive: boolean;
-  nightSurchargeStart: string;
-  nightSurchargeEnd: string;
-  safeguardMultiplier: number;
-  surcharges: ZoneFee[];
-  distanceTiers: DistanceTier[]; // Added for non-linear pricing
+  distanceTiers: DistanceTier[]; 
+  distancePricingMode: 'STANDARD' | 'TIERED';
 }
 
 export interface ZoneFee {
@@ -87,10 +82,12 @@ export interface ZoneFee {
 export interface SurgeRule {
   id: string;
   name: string;
-  multiplier: number;
+  pricingType: 'MULTIPLIER' | 'FLAT';
+  pricingValue: number;
   locationIds: string[];
   vehicleTypes: VehicleType[];
   zoneIds: string[];
+  isScheduled: boolean;
   startTime: string;
   endTime: string;
   isActive: boolean;

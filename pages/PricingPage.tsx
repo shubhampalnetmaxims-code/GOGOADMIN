@@ -23,9 +23,9 @@ const INITIAL_LOCATIONS: Location[] = [
 ];
 
 const INITIAL_ZONES: OperationalZone[] = [
-  { id: 'z1', name: 'JFK Airport', locationId: 'loc-1', lat: 40.6413, lng: -73.7781, radius: 1500 },
-  { id: 'z2', name: 'Manhattan Central', locationId: 'loc-1', lat: 40.7831, lng: -73.9712, radius: 2000 },
-  { id: 'z3', name: 'Heathrow Terminal', locationId: 'loc-2', lat: 51.4700, lng: -0.4543, radius: 1800 },
+  { id: 'z1', name: 'JFK Airport', locationId: 'loc-1', lat: 40.6413, lng: -73.7781, radius: 1500, isActive: true },
+  { id: 'z2', name: 'Manhattan Central', locationId: 'loc-1', lat: 40.7831, lng: -73.9712, radius: 2000, isActive: true },
+  { id: 'z3', name: 'Heathrow Terminal', locationId: 'loc-2', lat: 51.4700, lng: -0.4543, radius: 1800, isActive: true },
 ];
 
 const DEFAULT_PRICING: VehiclePricingConfig = {
@@ -81,7 +81,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
   const [globalSurgeRules, setGlobalSurgeRules] = useState<SurgeRule[]>(INITIAL_GLOBAL_SURGE);
   const [showGlobalInfo, setShowGlobalInfo] = useState(false);
   
-  // Track lock state per context (Vehicle or Global Dynamic mode)
   const [lockedStates, setLockedStates] = useState<Record<string, boolean>>({});
 
   const currentContextKey = useMemo(() => {
@@ -190,7 +189,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
            </div>
            <div className="h-10 w-px bg-gray-200" />
            
-           {/* Save Changes Button matching user image style */}
            <button 
              onClick={toggleLock}
              className={`flex flex-col items-center justify-center h-14 min-w-[140px] px-6 rounded-2xl border-2 transition-all group ${
@@ -277,7 +275,6 @@ export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
         )}
       </div>
 
-      {/* Global Information Modal */}
       <Modal isOpen={showGlobalInfo} onClose={() => setShowGlobalInfo(false)} title="Advanced Pricing Architecture">
         <div className="space-y-6">
           <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
@@ -368,24 +365,28 @@ const RateCardView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Parti
              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
                 <Input 
                   label={`Base Fare (${location.currency})`} 
+                  info="The initial cost charged at the start of every trip before any distance or time is added."
                   type="number" step="0.01" value={config.baseFare} 
                   disabled={disabled}
                   onChange={e => onUpdate({ baseFare: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
                   label={`Minimum Fare (${location.currency})`} 
+                  info="The absolute floor price for any trip. If calculated fare is lower, this will be charged."
                   type="number" step="0.01" value={config.minFare} 
                   disabled={disabled}
                   onChange={e => onUpdate({ minFare: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
                   label={`Rate per Km (${location.currency})`} 
+                  info="Charge applied for every kilometer traveled during the trip."
                   type="number" step="0.01" value={config.ratePerKm} 
                   disabled={disabled}
                   onChange={e => onUpdate({ ratePerKm: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
                   label={`Rate per Min (${location.currency})`} 
+                  info="Charge applied for every minute elapsed during the trip journey."
                   type="number" step="0.01" value={config.ratePerMin} 
                   disabled={disabled}
                   onChange={e => onUpdate({ ratePerMin: parseFloat(e.target.value) || 0 })} 
@@ -403,24 +404,28 @@ const RateCardView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Parti
              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
                 <Input 
                   label="Free Wait Time (Mins)" 
+                  info="Grace period where the driver waits for the passenger at no extra cost."
                   type="number" value={config.safeWaitTime} 
                   disabled={disabled}
                   onChange={e => onUpdate({ safeWaitTime: parseInt(e.target.value) || 0 })} 
                 />
                 <Input 
                   label="Wait Rate / Min" 
+                  info="The per-minute fee charged once the Free Wait Time has expired."
                   type="number" step="0.01" value={config.waitRate} 
                   disabled={disabled}
                   onChange={e => onUpdate({ waitRate: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
                   label="Platform Commission (%)" 
+                  info="Percentage of the total fare that the platform takes as a service fee."
                   type="number" step="0.1" value={config.commission} 
                   disabled={disabled}
                   onChange={e => onUpdate({ commission: parseFloat(e.target.value) || 0 })} 
                 />
                 <Input 
                   label="Service Tax Rate (%)" 
+                  info="Local regulatory tax percentage added on top of the final trip fare."
                   type="number" step="0.1" value={config.tax} 
                   disabled={disabled}
                   onChange={e => onUpdate({ tax: parseFloat(e.target.value) || 0 })} 
@@ -459,7 +464,6 @@ const RateCardView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Parti
                            <span className="text-gray-400 text-sm">Customer Pays</span>
                            <div className="text-right">
                              <span className="block text-2xl font-black text-blue-400">{location.currency} {finalFare.toFixed(2)}</span>
-                             {calculatedFare < config.minFare && <span className="text-[9px] uppercase font-bold text-yellow-500 animate-pulse">Min Fare Applied</span>}
                            </div>
                         </div>
                      </div>
@@ -546,11 +550,12 @@ const SurchargeView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Part
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-12 transition-all duration-500 ${(!config.nightSurchargeActive || disabled) ? 'opacity-30 grayscale pointer-events-none' : 'opacity-100'}`}>
              <Input 
                 label={`Flat Premium (${location.currency})`} 
+                info="The extra amount added to trips starting during the designated night window."
                 type="number" step="0.01" value={config.nightSurcharge} 
                 onChange={e => onUpdate({ nightSurcharge: parseFloat(e.target.value) || 0 })} 
              />
-             <Input label="Window Start" type="time" value={config.nightSurchargeStart} onChange={e => onUpdate({ nightSurchargeStart: e.target.value })} />
-             <Input label="Window End" type="time" value={config.nightSurchargeEnd} onChange={e => onUpdate({ nightSurchargeEnd: e.target.value })} />
+             <Input label="Window Start" info="The time (HH:MM) when night rates begin applying." type="time" value={config.nightSurchargeStart} onChange={e => onUpdate({ nightSurchargeStart: e.target.value })} />
+             <Input label="Window End" info="The time (HH:MM) when night rates stop being charged." type="time" value={config.nightSurchargeEnd} onChange={e => onUpdate({ nightSurchargeEnd: e.target.value })} />
           </div>
        </div>
 
@@ -601,30 +606,26 @@ const SurchargeView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Part
               </div>
             );
           })}
-          {config.surcharges.length === 0 && (
-             <div className="col-span-full py-20 flex flex-col items-center justify-center bg-gray-50/50 border-2 border-dashed border-gray-200 rounded-[56px] text-gray-400">
-                <MapPin size={40} className="mb-4 opacity-10" />
-                <p className="text-xs font-black uppercase tracking-widest">Zero Zone Surcharges Active</p>
-             </div>
-          )}
        </div>
 
        <Modal isOpen={modalState.open} onClose={() => setModalState({ open: false })} title={modalState.editId ? "Modify Hub Rule" : "Initialize Hub Premium"}>
           <div className="space-y-6">
              <Select 
                label="Operational Zone" 
+               info="The geographical hub where this extra charge will be triggered."
                options={availableZones.map(z => ({ value: z.id, label: z.name }))} 
                value={formData.zoneId} 
                onChange={e => setFormData({...formData, zoneId: e.target.value})} 
              />
              <Input 
                label={`Flat Surcharge (${location.currency})`} 
+               info="The amount added to trips that originate in or traverse this hub."
                type="number" step="0.01" value={formData.amount} 
                onChange={e => setFormData({...formData, amount: parseFloat(e.target.value)})} 
              />
              <div className="grid grid-cols-2 gap-4">
-               <Input label="Activation Time" type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
-               <Input label="Expiry Time" type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
+               <Input label="Activation Time" info="Start time for this hub surcharge." type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
+               <Input label="Expiry Time" info="End time for this hub surcharge." type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
              </div>
              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
                 <span className="text-sm font-bold text-gray-900">Active Monitoring</span>
@@ -634,7 +635,7 @@ const SurchargeView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Part
                 </label>
              </div>
              <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
-                <Button variant="secondary" onClick={() => setModalState({ open: false })}>Cancel</Button>
+                <Button variant="secondary" onClick={() => setModalState({ open: false })}>Discard</Button>
                 <Button variant="black" onClick={handleSave}>Confirm Hub Policy</Button>
              </div>
           </div>
@@ -781,22 +782,16 @@ const DynamicPricingHub: React.FC<{
                </div>
             </div>
           ))}
-          {rules.length === 0 && (
-            <div className="col-span-full py-24 flex flex-col items-center justify-center bg-white border-2 border-dashed border-gray-100 rounded-[56px] text-gray-300">
-               <Zap size={48} className="mb-4 opacity-5" />
-               <p className="text-sm font-black uppercase tracking-widest">No Active Global Triggers</p>
-            </div>
-          )}
        </div>
 
        <Modal isOpen={modalState.open} onClose={() => setModalState({ open: false })} title={modalState.editId ? "Edit Global Surge" : "New Dynamic Trigger"}>
           <div className="space-y-8">
-             <Input label="Event Name" placeholder="e.g. Rush Hour Co-ordination" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+             <Input label="Event Name" placeholder="e.g. Festival Rush" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
              <div className="grid grid-cols-2 gap-6">
-                <Input label="Multiplier Factor" type="number" step="0.1" value={formData.multiplier} onChange={e => setFormData({...formData, multiplier: parseFloat(e.target.value)})} />
+                <Input label="Multiplier Factor" info="The multiplication factor applied to the base trip cost during surge." type="number" step="0.1" value={formData.multiplier} onChange={e => setFormData({...formData, multiplier: parseFloat(e.target.value)})} />
                 <div className="grid grid-cols-2 gap-3">
-                   <Input label="Commences" type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
-                   <Input label="Concludes" type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
+                   <Input label="Commences" info="Start time for surge." type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
+                   <Input label="Concludes" info="End time for surge." type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
                 </div>
              </div>
              <MultiSelect 
@@ -839,7 +834,7 @@ const MarketSetup: React.FC<{
   const [locModal, setLocModal] = useState<{ open: boolean; editId?: string }>({ open: false });
   const [zoneModal, setZoneModal] = useState<{ open: boolean; editId?: string }>({ open: false });
   const [locData, setLocData] = useState<Partial<Location>>({ name: '', country: '', currency: 'USD' });
-  const [zoneData, setZoneData] = useState<Partial<OperationalZone>>({ name: '', radius: 1000, lat: 40.7128, lng: -74.0060 });
+  const [zoneData, setZoneData] = useState<Partial<OperationalZone>>({ name: '', radius: 1000, lat: 40.7128, lng: -74.0060, isActive: true });
 
   const activeZones = zones.filter(z => z.locationId === selectedLocationId);
   const activeLocation = locations.find(l => l.id === selectedLocationId) || locations[0];
@@ -861,7 +856,7 @@ const MarketSetup: React.FC<{
        setZoneData(zone);
        setZoneModal({ open: true, editId: zone.id });
     } else {
-       setZoneData({ name: '', radius: 1000, lat: 40.7128, lng: -74.0060 });
+       setZoneData({ name: '', radius: 1000, lat: 40.7128, lng: -74.0060, isActive: true });
        setZoneModal({ open: true });
     }
   };
@@ -881,9 +876,22 @@ const MarketSetup: React.FC<{
     if (zoneModal.editId) {
        setZones(zones.map(z => z.id === zoneModal.editId ? { ...z, ...zoneData } as OperationalZone : z));
     } else {
-       setZones([...zones, { id: Date.now().toString(), name: zoneData.name!, locationId: selectedLocationId, lat: zoneData.lat || 40, lng: zoneData.lng || -74, radius: zoneData.radius || 1000 }]);
+       setZones([...zones, { 
+         id: Date.now().toString(), 
+         name: zoneData.name!, 
+         locationId: selectedLocationId, 
+         lat: zoneData.lat || 40, 
+         lng: zoneData.lng || -74, 
+         radius: zoneData.radius || 1000,
+         isActive: zoneData.isActive ?? true 
+       }]);
     }
     setZoneModal({ open: false });
+  };
+
+  const toggleZoneStatus = (id: string) => {
+    if (disabled) return;
+    setZones(zones.map(z => z.id === id ? { ...z, isActive: !z.isActive } : z));
   };
 
   return (
@@ -934,21 +942,30 @@ const MarketSetup: React.FC<{
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {activeZones.map(zone => (
-                   <div key={zone.id} className="p-8 bg-gray-50 rounded-[40px] border border-gray-100 group relative hover:shadow-xl transition-all border-b-4 border-b-transparent hover:border-b-blue-600">
+                   <div key={zone.id} className={`p-8 bg-white rounded-[40px] border border-gray-100 group relative hover:shadow-xl transition-all border-b-4 border-b-transparent hover:border-b-blue-600 ${!zone.isActive ? 'grayscale opacity-60' : ''}`}>
                       <div className="flex justify-between items-start mb-6">
                          <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-white rounded-2xl text-blue-600 shadow-sm group-hover:scale-110 transition-transform"><MapPin size={24} /></div>
+                            <div className={`p-3 rounded-2xl shadow-sm group-hover:scale-110 transition-transform ${zone.isActive ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}><MapPin size={24} /></div>
                             <h4 className="font-black text-gray-900 tracking-tight">{zone.name}</h4>
                          </div>
-                         {!disabled && (
-                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                               <button onClick={() => handleOpenZone(zone)} className="p-2.5 text-gray-400 hover:text-blue-600 bg-white shadow-sm rounded-xl transition-all"><Edit2 size={16} /></button>
-                            </div>
-                         )}
+                         <div className={`flex items-center space-x-1 transition-all translate-x-2 group-hover:translate-x-0 ${disabled ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                            <button onClick={() => handleOpenZone(zone)} className="p-2.5 text-gray-400 hover:text-blue-600 bg-gray-50 rounded-xl transition-all shadow-sm"><Edit2 size={16} /></button>
+                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-[11px] font-black text-gray-400 uppercase tracking-widest mt-auto pt-6 border-t border-gray-200/50">
+                      <div className="flex items-center justify-between text-[11px] font-black text-gray-400 uppercase tracking-widest mt-auto pt-6 border-t border-gray-100">
                          <span className="flex items-center"><Layers size={14} className="mr-2 text-blue-500" />{zone.radius}m Detection Radius</span>
-                         <span className="text-blue-600 flex items-center font-black"><CheckCircle2 size={12} className="mr-1" /> Active</span>
+                         <div className="flex items-center space-x-3">
+                            <span className={`flex items-center font-black ${zone.isActive ? 'text-blue-600' : 'text-gray-400'}`}>
+                               {zone.isActive ? <CheckCircle2 size={12} className="mr-1" /> : <AlertCircle size={12} className="mr-1" />}
+                               {zone.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                            {!disabled && (
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                 <input type="checkbox" className="sr-only peer" checked={zone.isActive} onChange={() => toggleZoneStatus(zone.id)} />
+                                 <div className="w-8 h-4 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:after:translate-x-4"></div>
+                              </label>
+                            )}
+                         </div>
                       </div>
                    </div>
                 ))}
@@ -958,10 +975,10 @@ const MarketSetup: React.FC<{
 
        <Modal isOpen={locModal.open} onClose={() => setLocModal({ open: false })} title={locModal.editId ? "Update Market Profile" : "Register Global Market"}>
           <div className="space-y-6">
-             <Input label="Regional Name" placeholder="e.g. Barcelona" value={locData.name} onChange={e => setLocData({...locData, name: e.target.value})} />
+             <Input label="Regional Name" info="Urban area name." placeholder="e.g. Barcelona" value={locData.name} onChange={e => setLocData({...locData, name: e.target.value})} />
              <div className="grid grid-cols-2 gap-6">
-                <Input label="ISO Code" placeholder="e.g. ES" value={locData.country} onChange={e => setLocData({...locData, country: e.target.value})} />
-                <Input label="Standard Currency" placeholder="e.g. EUR" value={locData.currency} onChange={e => setLocData({...locData, currency: e.target.value})} />
+                <Input label="ISO Code" info="Country identifier." placeholder="e.g. ES" value={locData.country} onChange={e => setLocData({...locData, country: e.target.value})} />
+                <Input label="Standard Currency" info="Billing currency code." placeholder="e.g. EUR" value={locData.currency} onChange={e => setLocData({...locData, currency: e.target.value})} />
              </div>
              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <Button variant="secondary" onClick={() => setLocModal({ open: false })}>Discard</Button>
@@ -972,7 +989,7 @@ const MarketSetup: React.FC<{
 
        <Modal isOpen={zoneModal.open} onClose={() => setZoneModal({ open: false })} title={zoneModal.editId ? "Update Geofence" : "Define New Area"}>
           <div className="space-y-6">
-             <Input label="Area Identifier" placeholder="e.g. Airport Hub A" value={zoneData.name} onChange={e => setZoneData({...zoneData, name: e.target.value})} />
+             <Input label="Area Identifier" info="Friendly name for geofence." placeholder="e.g. Airport Hub A" value={zoneData.name} onChange={e => setZoneData({...zoneData, name: e.target.value})} />
              <div className="space-y-2">
                <label className="text-sm font-black text-gray-400 uppercase tracking-widest">Select Map Coordinate</label>
                <div className="w-full h-40 bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group cursor-crosshair shadow-inner" onClick={() => setZoneData({...zoneData, lat: 40.7 + Math.random()*0.1, lng: -74.0 + Math.random()*0.1})}>
@@ -987,6 +1004,13 @@ const MarketSetup: React.FC<{
                    <span className="text-blue-600 font-black text-lg">{zoneData.radius}m</span>
                 </label>
                 <input type="range" min="100" max="10000" step="100" value={zoneData.radius} onChange={e => setZoneData({...zoneData, radius: parseInt(e.target.value)})} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+             </div>
+             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                <span className="text-sm font-bold text-gray-900">Status</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                   <input type="checkbox" className="sr-only peer" checked={zoneData.isActive} onChange={() => setZoneData({...zoneData, isActive: !zoneData.isActive})} />
+                   <div className="w-12 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-6"></div>
+                </label>
              </div>
              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <Button variant="secondary" onClick={() => setZoneModal({ open: false })}>Discard</Button>

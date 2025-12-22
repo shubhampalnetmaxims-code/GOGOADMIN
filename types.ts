@@ -47,6 +47,7 @@ export interface OperationalZone {
   lat: number;
   lng: number;
   radius: number;
+  isActive: boolean; // Added
 }
 
 export interface VehiclePricingConfig {
@@ -72,8 +73,8 @@ export interface ZoneFee {
   zoneId: string;
   amount: number;
   isActive: boolean;
-  startTime: string; // Added
-  endTime: string;   // Added
+  startTime: string; 
+  endTime: string;   
 }
 
 export interface SurgeRule {

@@ -63,6 +63,8 @@ export interface VehiclePricingConfig {
   minFare: number;
   waitRate: number;
   safeWaitTime: number;
+  pickupWaitTime: number;
+  totalWaitTime: number;
   cancelFee: number;
   commission: number;
   tax: number;

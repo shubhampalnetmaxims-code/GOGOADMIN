@@ -33,7 +33,9 @@ const DEFAULT_PRICING: VehiclePricingConfig = {
   ratePerMin: 0.40,
   minFare: 8.00,
   waitRate: 0.50,
-  safeWaitTime: 5,
+  safeWaitTime: 5, // Grace Wait
+  pickupWaitTime: 2,
+  totalWaitTime: 7, // 2 + 5
   cancelFee: 5.00,
   commission: 15,
   tax: 5,
@@ -140,7 +142,17 @@ export const PricingPage: React.FC<PricingPageProps> = ({ service }) => {
 
   const updateActiveConfig = (updates: Partial<VehiclePricingConfig>) => {
     if (isCurrentViewLocked) return;
-    setConfigs(prev => ({ ...prev, [currentContextKey]: { ...(prev[currentContextKey] || { ...DEFAULT_PRICING }), ...updates } }));
+    setConfigs(prev => {
+      const current = prev[currentContextKey] || { ...DEFAULT_PRICING };
+      const merged = { ...current, ...updates };
+      
+      // Enforce: totalWaitTime = pickupWaitTime + safeWaitTime (Grace Wait)
+      if ('pickupWaitTime' in updates || 'safeWaitTime' in updates) {
+        merged.totalWaitTime = (merged.pickupWaitTime || 0) + (merged.safeWaitTime || 0);
+      }
+      
+      return { ...prev, [currentContextKey]: merged };
+    });
   };
 
   return (
@@ -240,7 +252,8 @@ const RateCardView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Parti
       });
     }
     const tFare = 15 * config.ratePerMin;
-    const wFare = Math.max(0, testWait - config.safeWaitTime) * config.waitRate;
+    // Fare calculation uses totalWaitTime as the threshold for billing
+    const wFare = Math.max(0, testWait - config.totalWaitTime) * config.waitRate;
     const subtotal = Math.max(config.minFare, config.baseFare + dFare + tFare);
     return subtotal + wFare;
   };
@@ -281,9 +294,18 @@ const RateCardView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Parti
                 <Input label="Commission %" info="Percentage of fare taken by the platform." type="number" step="0.1" value={config.commission} disabled={disabled} onChange={e => onUpdate({ commission: parseFloat(e.target.value) || 0 })} />
                 <Input label="Regulatory Tax %" info="Local government taxes applied to the ride." type="number" step="0.1" value={config.tax} disabled={disabled} onChange={e => onUpdate({ tax: parseFloat(e.target.value) || 0 })} />
                 <Input label="Cancel Fee" info="Penalty charged for user cancellations." type="number" step="0.01" value={config.cancelFee} disabled={disabled} onChange={e => onUpdate({ cancelFee: parseFloat(e.target.value) || 0 })} />
-                <div className="grid grid-cols-2 gap-4">
-                  <Input label="Wait Rate/Min" type="number" step="0.01" value={config.waitRate} disabled={disabled} onChange={e => onUpdate({ waitRate: parseFloat(e.target.value) || 0 })} />
-                  <Input label="Grace Wait" info="Minutes of free waiting before charges start." type="number" value={config.safeWaitTime} disabled={disabled} onChange={e => onUpdate({ safeWaitTime: parseInt(e.target.value) || 0 })} />
+                <div className="grid grid-cols-2 gap-6 bg-gray-50 p-6 rounded-[32px] border border-gray-100 md:col-span-2">
+                  <Input label="Pickup Wait Time" info="Minutes driver waits at pickup point for free." type="number" value={config.pickupWaitTime} disabled={disabled} onChange={e => onUpdate({ pickupWaitTime: parseInt(e.target.value) || 0 })} />
+                  <Input label="Grace Wait" info="Initial minutes of general free waiting." type="number" value={config.safeWaitTime} disabled={disabled} onChange={e => onUpdate({ safeWaitTime: parseInt(e.target.value) || 0 })} />
+                  <Input 
+                    label="Total Wait Time" 
+                    info="Calculated sum of Pickup Wait and Grace Wait. This is the total free window before billing starts." 
+                    type="number" 
+                    value={config.totalWaitTime} 
+                    disabled={true} 
+                    className="bg-gray-100 font-bold border-dashed"
+                  />
+                  <Input label="Wait Rate/Min" info="Cost applied per minute of billable waiting time." type="number" step="0.01" value={config.waitRate} disabled={disabled} onChange={e => onUpdate({ waitRate: parseFloat(e.target.value) || 0 })} />
                 </div>
              </div>
           </section>
@@ -302,7 +324,8 @@ const RateCardView: React.FC<{ config: VehiclePricingConfig; onUpdate: (u: Parti
                    </div>
                    <div className="space-y-2">
                       <label className="text-[10px] font-bold text-gray-500 uppercase flex justify-between">Wait Duration <span>{testWait} Min</span></label>
-                      <input type="range" min="0" max="30" value={testWait} onChange={e=>setTestWait(parseInt(e.target.value))} className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-amber-400" />
+                      <input type="range" min="0" max="60" value={testWait} onChange={e=>setTestWait(parseInt(e.target.value))} className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-amber-400" />
+                      <p className="text-[9px] text-gray-500 italic mt-1 font-medium">Free threshold: {config.totalWaitTime} min</p>
                    </div>
                 </div>
                 <div className="space-y-4 pt-6 border-t border-white/10">
@@ -361,7 +384,7 @@ const DynamicPricingHub: React.FC<{
 
        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {rules.map(rule => (
-            <div key={rule.id} className={`p-8 bg-white rounded-[40px] border border-gray-100 flex flex-col hover:shadow-2xl transition-all border-b-8 ${rule.isActive ? 'border-b-blue-600/10' : 'grayscale opacity-60'}`}>
+            <div key={rule.id} className={`p-8 bg-white rounded-[40px] border border-gray-200 flex flex-col hover:shadow-2xl transition-all border-b-8 ${rule.isActive ? 'border-b-blue-600/10' : 'grayscale opacity-60'}`}>
                <div className="flex justify-between items-start mb-6">
                   <div className={`p-3 rounded-2xl ${rule.isActive ? (rule.pricingType === 'FLAT' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600') : 'bg-gray-100 text-gray-400'}`}>
                     {rule.name.toLowerCase().includes('night') ? <Moon size={24}/> : <Zap size={24}/>}

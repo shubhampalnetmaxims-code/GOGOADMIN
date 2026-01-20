@@ -5,7 +5,7 @@ import {
   ChevronRight, CheckCircle2, Receipt, 
   History, Download, Ban, UserCheck, 
   Clock, User, DollarSign, Settings, Bell, AlertTriangle,
-  ChevronLeft, PieChart, TrendingUp, Landmark
+  ChevronLeft, PieChart, TrendingUp, Landmark, Edit2, Trash2
 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -70,7 +70,7 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
   const [debtThreshold, setDebtThreshold] = useState(500);
   
   // Modals
-  const [logModal, setLogModal] = useState<{ open: boolean; type?: PayoutType }>({ open: false });
+  const [logModal, setLogModal] = useState<{ open: boolean; type?: PayoutType; editLogId?: string }>({ open: false });
   const [settingsModal, setSettingsModal] = useState(false);
   const [notifyModal, setNotifyModal] = useState(false);
 
@@ -103,40 +103,106 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
     return drivers.find(d => d.id === selectedDriverId);
   }, [drivers, selectedDriverId]);
 
-  const handleOpenLog = (type: PayoutType) => {
+  const handleOpenLog = (type: PayoutType, log?: PayoutLog) => {
     if (!selectedDriver) return;
-    setLogFormData({ 
-      amount: type === PayoutType.PAYOUT_TO_DRIVER ? selectedDriver.payoutAmount : selectedDriver.ownedMoney, 
-      paymentMethod: PaymentMethod.BANK_TRANSFER, 
-      note: '' 
-    });
-    setLogModal({ open: true, type });
+    if (log) {
+      setLogFormData({ 
+        amount: log.amount, 
+        paymentMethod: log.paymentMethod, 
+        note: log.note 
+      });
+      setLogModal({ open: true, type: log.type, editLogId: log.id });
+    } else {
+      setLogFormData({ 
+        amount: type === PayoutType.PAYOUT_TO_DRIVER ? selectedDriver.payoutAmount : selectedDriver.ownedMoney, 
+        paymentMethod: PaymentMethod.BANK_TRANSFER, 
+        note: '' 
+      });
+      setLogModal({ open: true, type });
+    }
   };
 
   const handleSaveLog = () => {
     if (!selectedDriverId || !logFormData.amount || !logModal.type) return;
 
-    const newLog: PayoutLog = {
-      id: `TX-${Math.floor(Math.random() * 10000)}`,
-      date: new Date().toISOString().split('T')[0],
-      amount: logFormData.amount!,
-      type: logModal.type,
-      paymentMethod: logFormData.paymentMethod!,
-      note: logFormData.note || 'Account Settlement',
-      adminName: 'Super Admin',
-    };
-
-    setDrivers(drivers.map(d => {
+    setDrivers(prevDrivers => prevDrivers.map(d => {
       if (d.id === selectedDriverId) {
+        let newLogs = [...d.logs];
         let newPayout = d.payoutAmount;
         let newOwned = d.ownedMoney;
-        if (newLog.type === PayoutType.PAYOUT_TO_DRIVER) newPayout = Math.max(0, newPayout - newLog.amount);
-        else newOwned = Math.max(0, newOwned - newLog.amount);
-        return { ...d, payoutAmount: Number(newPayout.toFixed(2)), ownedMoney: Number(newOwned.toFixed(2)), logs: [newLog, ...d.logs] };
+
+        if (logModal.editLogId) {
+          // Editing existing log
+          const oldLog = d.logs.find(l => l.id === logModal.editLogId);
+          if (oldLog) {
+            // Revert old impact
+            if (oldLog.type === PayoutType.PAYOUT_TO_DRIVER) newPayout += oldLog.amount;
+            else newOwned += oldLog.amount;
+
+            // Apply new impact
+            if (logModal.type === PayoutType.PAYOUT_TO_DRIVER) newPayout -= logFormData.amount!;
+            else newOwned -= logFormData.amount!;
+
+            newLogs = newLogs.map(l => l.id === logModal.editLogId ? {
+              ...l,
+              amount: logFormData.amount!,
+              paymentMethod: logFormData.paymentMethod!,
+              note: logFormData.note || 'Account Settlement',
+            } : l);
+          }
+        } else {
+          // Adding new log
+          const newLog: PayoutLog = {
+            id: `TX-${Math.floor(Math.random() * 10000)}`,
+            date: new Date().toISOString().split('T')[0],
+            amount: logFormData.amount!,
+            type: logModal.type!,
+            paymentMethod: logFormData.paymentMethod!,
+            note: logFormData.note || 'Account Settlement',
+            adminName: 'Super Admin',
+          };
+
+          if (newLog.type === PayoutType.PAYOUT_TO_DRIVER) newPayout -= newLog.amount;
+          else newOwned -= newLog.amount;
+
+          newLogs = [newLog, ...newLogs];
+        }
+
+        return { 
+          ...d, 
+          payoutAmount: Number(Math.max(0, newPayout).toFixed(2)), 
+          ownedMoney: Number(Math.max(0, newOwned).toFixed(2)), 
+          logs: newLogs 
+        };
       }
       return d;
     }));
     setLogModal({ open: false });
+  };
+
+  const handleDeleteLog = (logId: string) => {
+    if (!confirm('Are you sure you want to delete this transaction? This will revert the balance impact.')) return;
+
+    setDrivers(prevDrivers => prevDrivers.map(d => {
+      if (d.id === selectedDriverId) {
+        const logToDelete = d.logs.find(l => l.id === logId);
+        if (!logToDelete) return d;
+
+        let newPayout = d.payoutAmount;
+        let newOwned = d.ownedMoney;
+
+        if (logToDelete.type === PayoutType.PAYOUT_TO_DRIVER) newPayout += logToDelete.amount;
+        else newOwned += logToDelete.amount;
+
+        return {
+          ...d,
+          payoutAmount: Number(newPayout.toFixed(2)),
+          ownedMoney: Number(newOwned.toFixed(2)),
+          logs: d.logs.filter(l => l.id !== logId)
+        };
+      }
+      return d;
+    }));
   };
 
   const handleNotify = () => {
@@ -344,11 +410,12 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
                         <th className="px-6 py-4">Operation</th>
                         <th className="px-6 py-4">Method</th>
                         <th className="px-6 py-4 text-right">Value</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {selectedDriver.logs.map(log => (
-                        <tr key={log.id} className="hover:bg-gray-50/50">
+                        <tr key={log.id} className="hover:bg-gray-50/50 group">
                           <td className="px-6 py-4 text-gray-500 font-medium whitespace-nowrap">{log.date}</td>
                           <td className="px-6 py-4">
                             <span className={`text-[10px] font-black uppercase tracking-widest ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-blue-500' : 'text-amber-500'}`}>
@@ -358,6 +425,24 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
                           <td className="px-6 py-4 text-gray-400 text-[10px] font-black uppercase tracking-widest">{log.paymentMethod.replace('_', ' ')}</td>
                           <td className={`px-6 py-4 text-right font-black ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-gray-900' : 'text-red-500'}`}>
                             {log.type === PayoutType.PAYOUT_TO_DRIVER ? '-' : '+'}${log.amount.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => handleOpenLog(log.type, log)}
+                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                title="Edit Transaction"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteLog(log.id)}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Delete Transaction"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -384,14 +469,14 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
       <Modal 
         isOpen={logModal.open} 
         onClose={() => setLogModal({ open: false })} 
-        title={logModal.type === PayoutType.PAYOUT_TO_DRIVER ? "Commit Disbursement" : "Record Collection"}
+        title={logModal.editLogId ? "Modify Transaction" : (logModal.type === PayoutType.PAYOUT_TO_DRIVER ? "Commit Disbursement" : "Record Collection")}
       >
         <div className="space-y-4">
           <div className="p-4 bg-gray-50 rounded-[20px] flex items-center gap-3">
             <img src={selectedDriver?.avatarUrl} className="w-10 h-10 rounded-xl border border-gray-200" alt="" />
             <div>
               <p className="text-xs font-black text-gray-900 leading-none">{selectedDriver?.name}</p>
-              <p className="text-[10px] text-gray-400 mt-1 uppercase font-black">Admin Clearance</p>
+              <p className="text-[10px] text-gray-400 mt-1 uppercase font-black">{logModal.editLogId ? 'Administrative Override' : 'Admin Clearance'}</p>
             </div>
           </div>
           <div className="space-y-4 pt-2">
@@ -432,7 +517,9 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
           </div>
           <div className="flex justify-end gap-3 pt-6 border-t border-gray-50 mt-4">
             <Button variant="ghost" onClick={() => setLogModal({ open: false })} className="text-[10px] font-black uppercase">Cancel</Button>
-            <Button variant="black" onClick={handleSaveLog} className="px-8 h-12 text-[10px] font-black uppercase tracking-widest shadow-xl">Execute Transaction</Button>
+            <Button variant="black" onClick={handleSaveLog} className="px-8 h-12 text-[10px] font-black uppercase tracking-widest shadow-xl">
+              {logModal.editLogId ? 'Commit Changes' : 'Execute Transaction'}
+            </Button>
           </div>
         </div>
       </Modal>

@@ -100,3 +100,30 @@ export interface User {
   email: string;
   avatarUrl?: string;
 }
+
+export enum PayoutType {
+  PAYOUT_TO_DRIVER = 'PAYOUT_TO_DRIVER',
+  COLLECT_FROM_DRIVER = 'COLLECT_FROM_DRIVER',
+}
+
+export interface PayoutLog {
+  id: string;
+  date: string;
+  amount: number;
+  type: PayoutType;
+  note: string;
+  adminName: string;
+}
+
+export interface DriverBilling {
+  id: string;
+  name: string;
+  avatarUrl: string;
+  completedTrips: number;
+  totalEarned: number;
+  totalCommission: number; // after tax
+  payoutAmount: number; // money already paid
+  ownedMoney: number; // balance
+  logs: PayoutLog[];
+  isBlocked?: boolean;
+}

@@ -1,12 +1,14 @@
+
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Car, Wrench, Banknote, ChevronDown, ChevronRight, Tablet, Share2, Package, UserCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Car, Wrench, Banknote, ChevronDown, ChevronRight, Tablet, Share2, Package, UserCheck, LogOut, ReceiptText } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
   onPageChange: (page: string) => void;
+  onLogout: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, onLogout }) => {
   const [pricingExpanded, setPricingExpanded] = useState(true);
 
   const isPricingPage = currentPage.startsWith('pricing-');
@@ -38,12 +40,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) =
         <div className="mb-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
           People
         </div>
-        <div className="mb-6">
+        <div className="mb-6 space-y-1">
           <NavItem 
             icon={<Users size={20} />} 
             label="Drivers" 
             active={currentPage === 'drivers'}
             onClick={() => onPageChange('drivers')}
+          />
+          <NavItem 
+            icon={<ReceiptText size={20} />} 
+            label="Billings & Payouts" 
+            active={currentPage === 'billings'}
+            onClick={() => onPageChange('billings')}
           />
         </div>
 
@@ -110,16 +118,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange }) =
         </div>
       </nav>
 
-      {/* User Profile */}
+      {/* User Profile & Logout */}
       <div className="p-4 border-t border-gray-200">
-        <div className="flex items-center">
-          <div className="w-10 h-10 rounded-full bg-blue-900 flex items-center justify-center text-white overflow-hidden">
-             <img src="https://picsum.photos/100/100" alt="Admin" className="w-full h-full object-cover" />
+        <div className="flex items-center justify-between group">
+          <div className="flex items-center">
+            <div className="w-10 h-10 rounded-full bg-blue-900 flex items-center justify-center text-white overflow-hidden shadow-sm">
+               <img src="https://picsum.photos/100/100" alt="Admin" className="w-full h-full object-cover" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-black text-gray-900 leading-tight">Admin</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">gogo@gmail.com</p>
+            </div>
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium text-gray-900">Admin</p>
-            <p className="text-xs text-gray-500">gogo@gmail.com</p>
-          </div>
+          <button 
+            onClick={onLogout} 
+            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            title="Log Out"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </div>
     </div>

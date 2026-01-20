@@ -1,20 +1,29 @@
 
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Car, Wrench, Banknote, ChevronDown, ChevronRight, Tablet, Share2, Package, UserCheck, LogOut, ReceiptText, Navigation } from 'lucide-react';
+import { LayoutDashboard, Users, Car, Wrench, Banknote, ChevronDown, ChevronRight, Tablet, Share2, Package, UserCheck, LogOut, ReceiptText, Navigation, X } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
   onPageChange: (page: string) => void;
   onLogout: () => void;
+  onToggle?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, onLogout, onToggle }) => {
   const [pricingExpanded, setPricingExpanded] = useState(true);
 
   const isPricingPage = currentPage.startsWith('pricing-');
 
   return (
-    <div className="w-64 bg-gray-100 h-full flex flex-col border-r border-gray-200">
+    <div className="w-64 bg-gray-100 h-full flex flex-col border-r border-gray-200 relative">
+      {/* Close button for mobile/collapsed state */}
+      <button 
+        onClick={onToggle}
+        className="lg:hidden absolute top-6 right-4 p-2 text-gray-400 hover:text-gray-900 transition-colors"
+      >
+        <X size={20} />
+      </button>
+
       {/* Logo Area */}
       <div className="p-6 flex items-center justify-center">
         <div className="text-3xl font-black text-blue-600 tracking-tighter flex items-center">
@@ -27,7 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, onL
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto no-scrollbar">
         <div className="mb-6">
           <NavItem 
             icon={<LayoutDashboard size={20} />} 

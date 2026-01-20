@@ -106,11 +106,19 @@ export enum PayoutType {
   COLLECT_FROM_DRIVER = 'COLLECT_FROM_DRIVER',
 }
 
+export enum PaymentMethod {
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  CASH = 'CASH',
+  MOBILE_MONEY = 'MOBILE_MONEY',
+  STRIPE = 'STRIPE',
+}
+
 export interface PayoutLog {
   id: string;
   date: string;
   amount: number;
   type: PayoutType;
+  paymentMethod: PaymentMethod;
   note: string;
   adminName: string;
 }
@@ -124,6 +132,7 @@ export interface DriverBilling {
   totalCommission: number; // after tax
   payoutAmount: number; // money already paid
   ownedMoney: number; // balance
+  debtStartedAt?: string; // ISO date when balance first became > 0
   logs: PayoutLog[];
   isBlocked?: boolean;
 }

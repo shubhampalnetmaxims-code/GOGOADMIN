@@ -1,11 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Plus, Search, FileDown, History, DollarSign, ArrowUpRight, ArrowDownLeft, 
-  ChevronDown, ChevronUp, Calendar, CheckCircle2, Wallet, Receipt, AlertCircle,
-  TrendingUp, ArrowRight, Download, FileText, Settings, Bell, Ban, UserCheck, 
-  MoreVertical, CheckSquare, Square, Navigation, Banknote, Smartphone, CreditCard,
-  Clock, Filter
+  Search, ArrowLeft, ArrowDownLeft, ArrowRight,
+  ChevronRight, CheckCircle2, Receipt, 
+  History, Download, Ban, UserCheck, 
+  Clock, User, DollarSign, Settings, Bell, AlertTriangle
 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -13,11 +12,7 @@ import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { DriverBilling, PayoutLog, PayoutType, PaymentMethod } from '../types';
 
-interface BillingPayoutPageProps {
-  onNavigateToTrips?: (filter: string) => void;
-}
-
-type BillingFilter = 'ALL' | 'READY_PAYOUT' | 'HIGH_RISK' | 'BLOCKED';
+type BillingFilter = 'ALL' | 'PAYOUT' | 'DEBT' | 'HIGH_RISK';
 
 const MOCK_BILLING_DATA: DriverBilling[] = [
   {
@@ -43,7 +38,7 @@ const MOCK_BILLING_DATA: DriverBilling[] = [
     totalCommission: 465.00,
     payoutAmount: 0.00,
     ownedMoney: 850.00,
-    debtStartedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days ago
+    debtStartedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
     isBlocked: false,
     logs: [
       { id: 'l2', date: '2024-03-10', amount: 50.00, type: PayoutType.COLLECT_FROM_DRIVER, paymentMethod: PaymentMethod.CASH, note: 'Cash deposit at office', adminName: 'Admin Sarah' },
@@ -65,20 +60,21 @@ const MOCK_BILLING_DATA: DriverBilling[] = [
   }
 ];
 
-export const BillingPayoutPage: React.FC<BillingPayoutPageProps> = ({ onNavigateToTrips }) => {
+export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) => void }> = () => {
   const [drivers, setDrivers] = useState<DriverBilling[]>(MOCK_BILLING_DATA);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(MOCK_BILLING_DATA[0].id);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<BillingFilter>('ALL');
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [selectedDrivers, setSelectedDrivers] = useState<Set<string>>(new Set());
-  
+  const [isMobileDetailView, setIsMobileDetailView] = useState(false);
   const [debtThreshold, setDebtThreshold] = useState(500);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  const [logModal, setLogModal] = useState<{ open: boolean; driverId?: string }>({ open: false });
+  // Modals
+  const [logModal, setLogModal] = useState<{ open: boolean; type?: PayoutType }>({ open: false });
+  const [settingsModal, setSettingsModal] = useState(false);
+  const [notifyModal, setNotifyModal] = useState(false);
+
   const [logFormData, setLogFormData] = useState<Partial<PayoutLog>>({
     amount: 0,
-    type: PayoutType.PAYOUT_TO_DRIVER,
     paymentMethod: PaymentMethod.BANK_TRANSFER,
     note: '',
   });
@@ -95,535 +91,362 @@ export const BillingPayoutPage: React.FC<BillingPayoutPageProps> = ({ onNavigate
     return drivers.filter(d => {
       const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
-
-      switch (activeFilter) {
-        case 'READY_PAYOUT': return d.payoutAmount > 0;
-        case 'HIGH_RISK': return d.ownedMoney > debtThreshold;
-        case 'BLOCKED': return d.isBlocked;
-        default: return true;
-      }
+      if (activeFilter === 'PAYOUT') return d.payoutAmount > 0;
+      if (activeFilter === 'DEBT') return d.ownedMoney > 0;
+      if (activeFilter === 'HIGH_RISK') return d.ownedMoney > debtThreshold;
+      return true;
     });
   }, [drivers, searchQuery, activeFilter, debtThreshold]);
 
-  const activeDriverForModal = useMemo(() => {
-    return drivers.find(d => d.id === logModal.driverId);
-  }, [drivers, logModal.driverId]);
+  const selectedDriver = useMemo(() => {
+    return drivers.find(d => d.id === selectedDriverId);
+  }, [drivers, selectedDriverId]);
 
-  const toggleRow = (id: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) newExpanded.delete(id);
-    else newExpanded.add(id);
-    setExpandedRows(newExpanded);
-  };
-
-  const toggleSelection = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newSelected = new Set(selectedDrivers);
-    if (newSelected.has(id)) newSelected.delete(id);
-    else newSelected.add(id);
-    setSelectedDrivers(newSelected);
-  };
-
-  const selectAll = () => {
-    if (selectedDrivers.size === filteredDrivers.length) {
-      setSelectedDrivers(new Set());
-    } else {
-      setSelectedDrivers(new Set(filteredDrivers.map(d => d.id)));
-    }
-  };
-
-  const handleBlockToggle = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDrivers(drivers.map(d => d.id === id ? { ...d, isBlocked: !d.isBlocked } : d));
-  };
-
-  const notifySelected = () => {
-    if (selectedDrivers.size === 0) return;
-    const targets = drivers.filter(d => selectedDrivers.has(d.id));
-    const names = targets.map(d => d.name).join(', ');
-    alert(`Sending Payment Reminders to: ${names}\nTotal debt being notified: $${targets.reduce((acc, d) => acc + d.ownedMoney, 0).toFixed(2)}`);
-    setSelectedDrivers(new Set());
-  };
-
-  const handleOpenLog = (driverId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const driver = drivers.find(d => d.id === driverId);
-    setLogModal({ open: true, driverId });
-    
-    if (driver) {
-      if (driver.payoutAmount > 0) {
-        setLogFormData({ amount: driver.payoutAmount, type: PayoutType.PAYOUT_TO_DRIVER, paymentMethod: PaymentMethod.BANK_TRANSFER, note: 'Settlement' });
-      } else if (driver.ownedMoney > 0) {
-        setLogFormData({ amount: driver.ownedMoney, type: PayoutType.COLLECT_FROM_DRIVER, paymentMethod: PaymentMethod.CASH, note: 'Collection' });
-      } else {
-        setLogFormData({ amount: 0, type: PayoutType.PAYOUT_TO_DRIVER, paymentMethod: PaymentMethod.BANK_TRANSFER, note: '' });
-      }
-    }
+  const handleOpenLog = (type: PayoutType) => {
+    if (!selectedDriver) return;
+    setLogFormData({ 
+      amount: type === PayoutType.PAYOUT_TO_DRIVER ? selectedDriver.payoutAmount : selectedDriver.ownedMoney, 
+      paymentMethod: PaymentMethod.BANK_TRANSFER, 
+      note: '' 
+    });
+    setLogModal({ open: true, type });
   };
 
   const handleSaveLog = () => {
-    if (!logModal.driverId || !logFormData.amount) return;
+    if (!selectedDriverId || !logFormData.amount || !logModal.type) return;
 
     const newLog: PayoutLog = {
       id: `TX-${Math.floor(Math.random() * 10000)}`,
       date: new Date().toISOString().split('T')[0],
       amount: logFormData.amount!,
-      type: logFormData.type!,
+      type: logModal.type,
       paymentMethod: logFormData.paymentMethod!,
-      note: logFormData.note || 'Manual Settlement',
+      note: logFormData.note || 'Account Settlement',
       adminName: 'Super Admin',
     };
 
     setDrivers(drivers.map(d => {
-      if (d.id === logModal.driverId) {
+      if (d.id === selectedDriverId) {
         let newPayout = d.payoutAmount;
         let newOwned = d.ownedMoney;
-        let newDebtStart = d.debtStartedAt;
-
-        if (newLog.type === PayoutType.PAYOUT_TO_DRIVER) {
-          newPayout = Math.max(0, newPayout - newLog.amount);
-          if (newLog.amount > d.payoutAmount) {
-             newOwned += (newLog.amount - d.payoutAmount);
-          }
-        } else {
-          newOwned = Math.max(0, newOwned - newLog.amount);
-          if (newLog.amount > d.ownedMoney) {
-             newPayout += (newLog.amount - d.ownedMoney);
-          }
-        }
-
-        // Handle debt aging logic
-        if (newOwned > 0 && !newDebtStart) {
-          newDebtStart = new Date().toISOString();
-        } else if (newOwned === 0) {
-          newDebtStart = undefined;
-        }
-
-        return {
-          ...d,
-          payoutAmount: Number(newPayout.toFixed(2)),
-          ownedMoney: Number(newOwned.toFixed(2)),
-          debtStartedAt: newDebtStart,
-          logs: [newLog, ...d.logs]
-        };
+        if (newLog.type === PayoutType.PAYOUT_TO_DRIVER) newPayout = Math.max(0, newPayout - newLog.amount);
+        else newOwned = Math.max(0, newOwned - newLog.amount);
+        return { ...d, payoutAmount: Number(newPayout.toFixed(2)), ownedMoney: Number(newOwned.toFixed(2)), logs: [newLog, ...d.logs] };
       }
       return d;
     }));
-
     setLogModal({ open: false });
   };
 
-  const getPaymentMethodIcon = (method: PaymentMethod) => {
-    switch (method) {
-      case PaymentMethod.BANK_TRANSFER: return <Banknote size={14} />;
-      case PaymentMethod.CASH: return <Wallet size={14} />;
-      case PaymentMethod.MOBILE_MONEY: return <Smartphone size={14} />;
-      case PaymentMethod.STRIPE: return <CreditCard size={14} />;
-      default: return <History size={14} />;
-    }
+  const handleNotify = () => {
+    setNotifyModal(true);
+    // Simulate notification sending
+    setTimeout(() => {
+      setNotifyModal(false);
+      alert(`Notification sent to ${selectedDriver?.name}`);
+    }, 1500);
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-500 overflow-x-hidden">
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[24px] md:rounded-[32px] border border-gray-100 shadow-sm relative overflow-hidden">
-        <div className="flex-1 relative z-10">
-          <div className="flex items-center gap-2 mb-1">
-             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                <Receipt size={18} />
-             </div>
-             <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Settlements & Billing</h1>
+    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
+      {/* 1. Header with Settings */}
+      <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-100">
+            <Receipt size={20} />
           </div>
-          <p className="text-xs md:text-sm text-gray-500 font-medium italic">Monitor compliance and aging debt.</p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3 relative z-10">
-           <div className="flex items-center gap-2">
-             <button 
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-3 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl border border-transparent transition-all shadow-sm"
-             >
-                <Settings size={22} />
-             </button>
-             <div className="hidden sm:block w-px h-10 bg-gray-100 mx-2" />
-           </div>
-           
-           <div className="flex-1 sm:flex-none flex items-center gap-3">
-             <div className="flex-1 bg-blue-50 border border-blue-100 p-3 md:p-4 rounded-2xl flex flex-col min-w-[120px]">
-                <span className="text-[9px] md:text-[10px] font-black uppercase text-blue-400 tracking-widest mb-1">Payouts</span>
-                <span className="text-lg md:text-xl font-black text-blue-600">${drivers.reduce((acc, d) => acc + d.payoutAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-             </div>
-             <div className="flex-1 bg-amber-50 border border-amber-100 p-3 md:p-4 rounded-2xl flex flex-col min-w-[120px]">
-                <span className="text-[9px] md:text-[10px] font-black uppercase text-amber-400 tracking-widest mb-1">Owed</span>
-                <span className="text-lg md:text-xl font-black text-amber-600">${drivers.reduce((acc, d) => acc + d.ownedMoney, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-             </div>
-           </div>
-        </div>
-      </header>
-
-      <div className="bg-white rounded-[24px] md:rounded-[40px] shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-        {/* Smart Filters & Search Bar */}
-        <div className="p-4 md:p-6 bg-gray-50/50 border-b space-y-4">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 -mx-2 px-2">
-             <button 
-               onClick={() => setActiveFilter('ALL')}
-               className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'ALL' ? 'bg-gray-900 text-white border-gray-900 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
-             >
-                <Filter size={14} /> All
-             </button>
-             <button 
-               onClick={() => setActiveFilter('READY_PAYOUT')}
-               className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'READY_PAYOUT' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}
-             >
-                <DollarSign size={14} /> Payout
-             </button>
-             <button 
-               onClick={() => setActiveFilter('HIGH_RISK')}
-               className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'HIGH_RISK' ? 'bg-red-600 text-white border-red-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:border-red-300'}`}
-             >
-                <AlertCircle size={14} /> High Risk
-             </button>
-             <button 
-               onClick={() => setActiveFilter('BLOCKED')}
-               className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all border ${activeFilter === 'BLOCKED' ? 'bg-amber-600 text-white border-amber-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:border-amber-300'}`}
-             >
-                <Ban size={14} /> Blocked
-             </button>
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 leading-none">Billing & Payouts</h1>
+            <p className="text-xs text-gray-500 mt-1">Manage driver settlements and collection policies</p>
           </div>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1 w-full">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Find driver..." 
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-[14px] md:rounded-[18px] focus:ring-4 focus:ring-blue-500/10 outline-none transition-all text-sm font-medium shadow-inner"
-                />
-              </div>
-              {selectedDrivers.size > 0 && (
-                <button 
-                  onClick={notifySelected}
-                  className="shrink-0 p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-100 flex items-center justify-center animate-in slide-in-from-left-4"
-                  title={`Notify ${selectedDrivers.size} drivers`}
-                >
-                  <Bell size={18} />
-                </button>
-              )}
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex gap-6 items-center">
+            <div className="flex flex-col text-right">
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Total Disbursed</span>
+              <span className="text-sm font-bold text-gray-900">${drivers.reduce((acc, d) => acc + d.payoutAmount, 0).toLocaleString()}</span>
             </div>
-            <div className="hidden md:flex gap-3">
-               <Button variant="ghost" icon={<Download size={18} />} className="text-[10px] font-black rounded-xl px-5 uppercase tracking-widest">Full Ledger</Button>
+            <div className="flex flex-col text-right border-l border-gray-100 pl-6">
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Total Collections</span>
+              <span className="text-sm font-bold text-amber-600">${drivers.reduce((acc, d) => acc + d.ownedMoney, 0).toLocaleString()}</span>
             </div>
           </div>
-        </div>
-
-        <div className="overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead>
-              <tr className="bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b">
-                <th className="px-6 py-4 w-12 text-center">
-                   <button onClick={selectAll} className="text-gray-300 hover:text-blue-600 transition-colors">
-                      {selectedDrivers.size === filteredDrivers.length && filteredDrivers.length > 0 ? <CheckSquare size={18} className="text-blue-600" /> : <Square size={18} />}
-                   </button>
-                </th>
-                <th className="px-4 py-4">Driver Entity</th>
-                <th className="px-4 py-4 text-center">Trips</th>
-                <th className="px-6 py-4">Gross Earned</th>
-                <th className="px-6 py-4">Comm & Tax</th>
-                <th className="px-6 py-4">Payout Due</th>
-                <th className="px-6 py-4">Owned Money</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredDrivers.map(driver => {
-                const debtAge = getDebtAge(driver.debtStartedAt);
-                const isOverThreshold = driver.ownedMoney > debtThreshold;
-                const isVeryOldDebt = debtAge > 14;
-
-                return (
-                  <React.Fragment key={driver.id}>
-                    <tr 
-                      onClick={() => toggleRow(driver.id)}
-                      className={`transition-all cursor-pointer group 
-                        ${expandedRows.has(driver.id) ? 'bg-blue-50/10' : 'bg-white'} 
-                        ${driver.isBlocked ? 'opacity-70 grayscale-[0.5]' : 'opacity-100'} 
-                        ${isOverThreshold ? 'bg-red-50/30 hover:bg-red-50/50' : 'hover:bg-blue-50/20'}`}
-                    >
-                      <td className="relative px-6 py-5 w-12 text-center overflow-hidden">
-                        {isOverThreshold && (
-                          <div className="absolute left-0 top-0 bottom-0 w-[5px] bg-red-600" />
-                        )}
-                        <button onClick={(e) => toggleSelection(driver.id, e)} className="text-gray-300 hover:text-blue-600 transition-colors">
-                           {selectedDrivers.has(driver.id) ? <CheckSquare size={18} className="text-blue-600" /> : <Square size={18} />}
-                        </button>
-                      </td>
-                      <td className="px-4 py-5 whitespace-nowrap">
-                        <div className="flex items-center gap-4">
-                          <div className="relative shrink-0">
-                            <img src={driver.avatarUrl} alt="" className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-sm" />
-                            {isOverThreshold && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse" />}
-                          </div>
-                          <div>
-                            <p className="text-sm font-black text-gray-900 leading-none mb-1">{driver.name}</p>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">ID: {driver.id}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-5 text-center">
-                         <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onNavigateToTrips) onNavigateToTrips(driver.name);
-                          }}
-                          className="inline-flex items-center justify-center min-w-[48px] text-[10px] font-black text-blue-600 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all shadow-sm"
-                         >
-                            {driver.completedTrips}
-                         </button>
-                      </td>
-                      <td className="px-6 py-5 text-sm font-black text-gray-900 whitespace-nowrap tracking-tight">${driver.totalEarned.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="px-6 py-5 text-sm font-bold text-red-500 whitespace-nowrap tracking-tight">-${driver.totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="px-6 py-5 text-sm font-black text-blue-600 whitespace-nowrap tracking-tight">
-                         ${driver.payoutAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
-                         <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                               <span className={`text-sm font-black ${isOverThreshold ? 'text-red-600' : driver.ownedMoney > 0 ? 'text-amber-600' : 'text-gray-300'}`}>
-                                 ${driver.ownedMoney.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                               </span>
-                               {isOverThreshold && <AlertCircle size={14} className="text-red-500" />}
-                            </div>
-                            {driver.ownedMoney > 0 && (
-                              <div className="flex items-center gap-1 mt-1">
-                                 <Clock size={10} className={isVeryOldDebt ? 'text-red-500' : 'text-gray-400'} />
-                                 <span className={`text-[9px] font-black uppercase tracking-widest ${isVeryOldDebt ? 'text-red-500' : 'text-gray-400'}`}>Aging: {debtAge}d</span>
-                              </div>
-                            )}
-                         </div>
-                      </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
-                         {driver.isBlocked ? (
-                           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-red-100">
-                              <Ban size={12} /> Blocked
-                           </span>
-                         ) : (
-                           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-green-100">
-                              <UserCheck size={12} /> Active
-                           </span>
-                         )}
-                      </td>
-                      <td className="px-6 py-5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={(e) => handleBlockToggle(driver.id, e)}
-                            className={`p-2 rounded-xl transition-all border ${driver.isBlocked ? 'bg-green-50 text-green-600 border-green-100 hover:bg-green-100' : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'}`}
-                          >
-                             {driver.isBlocked ? <UserCheck size={16} /> : <Ban size={16} />}
-                          </button>
-                          <button 
-                            onClick={(e) => handleOpenLog(driver.id, e)}
-                            className="p-2 bg-gray-900 text-white rounded-xl hover:bg-blue-600 transition-all shadow-md shadow-gray-200"
-                          >
-                             <Receipt size={16} />
-                          </button>
-                          <div className="hidden sm:block w-px h-6 bg-gray-100 mx-1" />
-                          <button 
-                            onClick={(e) => {e.stopPropagation();}}
-                            className="hidden sm:block p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                          >
-                            <FileText size={18} />
-                          </button>
-                          <ChevronDown size={16} className={`text-gray-300 transition-transform ${expandedRows.has(driver.id) ? 'rotate-180' : ''}`} />
-                        </div>
-                      </td>
-                    </tr>
-
-                    {expandedRows.has(driver.id) && (
-                      <tr className="bg-gray-50/50 animate-in slide-in-from-top-2 duration-300">
-                        <td colSpan={9} className="px-4 md:px-10 py-6 md:py-8">
-                          <div className="bg-white rounded-[20px] md:rounded-[32px] border border-gray-100 p-4 md:p-8 shadow-sm overflow-hidden">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                               <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center gap-2">
-                                 <History size={14} className="text-blue-500" /> Authorized Audit Trail
-                               </h4>
-                               <div className="flex flex-wrap items-center gap-2 md:gap-4">
-                                  <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-lg">ID: {driver.id}</p>
-                                  <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-lg">Agg: ${driver.logs.reduce((acc, l) => acc + l.amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                               </div>
-                            </div>
-
-                            {driver.logs.length > 0 ? (
-                              <div className="space-y-3">
-                                {driver.logs.map(log => (
-                                  <div key={log.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 md:p-5 rounded-2xl border border-gray-100 hover:bg-blue-50/20 transition-all border-l-4 border-l-transparent hover:border-l-blue-600 gap-4">
-                                    <div className="flex items-center gap-4">
-                                      <div className={`p-2.5 rounded-xl shrink-0 ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
-                                        {getPaymentMethodIcon(log.paymentMethod)}
-                                      </div>
-                                      <div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                           <p className="text-[11px] font-black text-gray-900 uppercase tracking-tight">{log.type === PayoutType.PAYOUT_TO_DRIVER ? 'Platform Payout' : 'Manual Collection'}</p>
-                                           <span className="text-[8px] md:text-[9px] font-black text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded uppercase tracking-widest">{log.paymentMethod.replace('_', ' ')}</span>
-                                        </div>
-                                        <p className="text-[10px] text-gray-500 font-medium italic truncate max-w-[200px]">{log.note}</p>
-                                      </div>
-                                    </div>
-                                    <div className="text-right sm:text-right flex flex-row sm:flex-col justify-between items-center sm:items-end border-t sm:border-t-0 pt-3 sm:pt-0">
-                                      <p className={`text-sm md:text-base font-black ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-blue-600' : 'text-amber-600'}`}>
-                                        {log.type === PayoutType.PAYOUT_TO_DRIVER ? '-' : '+'}${log.amount.toFixed(2)}
-                                      </p>
-                                      <p className="text-[8px] md:text-[9px] font-bold uppercase tracking-tighter text-gray-400 mt-1">{log.date} • {log.adminName}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-center py-12 md:py-16 flex flex-col items-center bg-gray-50/50 rounded-[20px] md:rounded-[24px] border border-dashed border-gray-200">
-                                 <div className="p-3 bg-white rounded-xl shadow-sm mb-4">
-                                    <Receipt size={24} className="text-gray-300" />
-                                 </div>
-                                 <p className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-900 mb-1">Zero Transactions</p>
-                                 <p className="text-[9px] text-gray-400 font-medium italic mb-6">No historical payouts exist.</p>
-                                 <Button 
-                                   variant="black" 
-                                   icon={<Plus size={16} />} 
-                                   className="rounded-xl px-4 md:px-6 h-9 md:h-10 text-[9px] md:text-[10px] uppercase font-black"
-                                   onClick={(e) => handleOpenLog(driver.id, e)}
-                                 >
-                                    Initiate First
-                                 </Button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+          <button 
+            onClick={() => setSettingsModal(true)}
+            className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all border border-transparent hover:border-gray-200"
+            title="Billing Settings"
+          >
+            <Settings size={20} />
+          </button>
         </div>
       </div>
 
-      {/* Financial Settings Modal */}
-      <Modal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-        title="Fleet Controls"
-      >
-        <div className="space-y-6">
-           <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-4">Risk Monitoring Threshold</label>
-              <div className="bg-gray-50 p-6 rounded-[24px] border border-gray-100 mb-6">
-                 <div className="flex justify-between items-end mb-6">
-                    <div>
-                       <p className="text-sm font-black text-gray-900 leading-none">High-Risk Limit</p>
-                    </div>
-                    <span className="text-xl font-black text-blue-600 tracking-tighter">${debtThreshold}</span>
-                 </div>
-                 <input 
-                  type="range" 
-                  min="0" 
-                  max="2000" 
-                  step="50" 
-                  value={debtThreshold} 
-                  onChange={e => setDebtThreshold(parseInt(e.target.value))} 
-                  className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                 />
-              </div>
-              <p className="text-[10px] text-gray-500 italic leading-relaxed px-2 text-center">
-                Rows are flagged when debt exceeds this limit.
-              </p>
-           </div>
-           <div className="pt-4 border-t border-gray-100">
-              <Button variant="black" fullWidth className="rounded-xl h-12 uppercase tracking-widest text-[10px] font-black shadow-xl" onClick={() => setIsSettingsOpen(false)}>Save Settings</Button>
-           </div>
-        </div>
-      </Modal>
+      <div className="flex-1 flex overflow-hidden">
+        {/* 2. Registry Sidebar */}
+        <div className={`w-full lg:w-[320px] bg-white border-r border-gray-200 flex flex-col shrink-0 transition-all ${isMobileDetailView ? '-translate-x-full lg:translate-x-0' : 'translate-x-0'}`}>
+          <div className="p-4 border-b border-gray-50 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input 
+                type="text" 
+                placeholder="Find driver by name or ID..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+              />
+            </div>
+            <div className="flex gap-1 overflow-x-auto no-scrollbar">
+              {['ALL', 'PAYOUT', 'DEBT', 'HIGH_RISK'].map(f => (
+                <button 
+                  key={f}
+                  onClick={() => setActiveFilter(f as BillingFilter)}
+                  className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${activeFilter === f ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-400 hover:text-gray-900 bg-gray-50'}`}
+                >
+                  {f.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Settlement Execution Modal */}
+          <div className="flex-1 overflow-y-auto no-scrollbar divide-y divide-gray-50">
+            {filteredDrivers.map(driver => {
+              const isOverThreshold = driver.ownedMoney > debtThreshold;
+              return (
+                <button 
+                  key={driver.id}
+                  onClick={() => { setSelectedDriverId(driver.id); setIsMobileDetailView(true); }}
+                  className={`w-full flex items-center gap-3 p-4 text-left transition-all ${selectedDriverId === driver.id ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}
+                >
+                  <div className="relative shrink-0">
+                    <img src={driver.avatarUrl} className="w-9 h-9 rounded-full object-cover border border-gray-100 shadow-sm" alt="" />
+                    {isOverThreshold && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{driver.name}</p>
+                    <p className="text-[10px] text-gray-400 font-medium">ID: {driver.id}</p>
+                  </div>
+                  <div className="text-right">
+                    {driver.payoutAmount > 0 ? (
+                      <p className="text-xs font-bold text-blue-600">${driver.payoutAmount.toFixed(0)}</p>
+                    ) : (
+                      <p className={`text-xs font-bold ${isOverThreshold ? 'text-red-500' : 'text-amber-600'}`}>
+                        ${driver.ownedMoney.toFixed(0)}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 3. Detail Pane */}
+        <div className={`flex-1 flex flex-col bg-white transition-all fixed inset-0 lg:relative ${isMobileDetailView ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
+          {selectedDriver ? (
+            <div className="flex flex-col h-full bg-white">
+              {/* Profile Bar */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <button onClick={() => setIsMobileDetailView(false)} className="lg:hidden p-2 -ml-2 text-gray-400"><ArrowLeft size={20} /></button>
+                  <img src={selectedDriver.avatarUrl} className="w-14 h-14 rounded-xl object-cover shadow-sm border border-gray-100" alt="" />
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">{selectedDriver.name}</h2>
+                    <p className="text-xs text-gray-400 font-medium">Driver ID: {selectedDriver.id} • {selectedDriver.completedTrips} Trips</p>
+                  </div>
+                </div>
+                {selectedDriver.ownedMoney > debtThreshold && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-red-100">
+                    <AlertTriangle size={12} /> High Risk Account
+                  </div>
+                )}
+              </div>
+
+              {/* Actionable Balances */}
+              <div className="p-6 bg-gray-50/50 border-b border-gray-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                    <div className="flex justify-between items-start mb-4">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Available Payout</p>
+                      <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><DollarSign size={14} /></div>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <span className="text-3xl font-bold text-gray-900">${selectedDriver.payoutAmount.toFixed(2)}</span>
+                      <Button size="sm" variant="black" className="rounded-lg px-4 h-9 text-xs" disabled={selectedDriver.payoutAmount <= 0} onClick={() => handleOpenLog(PayoutType.PAYOUT_TO_DRIVER)}>Settlement</Button>
+                    </div>
+                  </div>
+                  <div className={`p-5 rounded-2xl border shadow-sm transition-all ${selectedDriver.ownedMoney > debtThreshold ? 'bg-red-50/30 border-red-100' : 'bg-white border-gray-200'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Driver Owed</p>
+                        {selectedDriver.ownedMoney > 0 && (
+                          <p className="text-[9px] font-bold text-amber-600 mt-1 uppercase tracking-tighter flex items-center gap-1">
+                            <Clock size={10} /> Owed for {getDebtAge(selectedDriver.debtStartedAt)} days
+                          </p>
+                        )}
+                      </div>
+                      <div className={`p-1.5 rounded-lg ${selectedDriver.ownedMoney > debtThreshold ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'}`}><ArrowDownLeft size={14} /></div>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <span className={`text-3xl font-bold ${selectedDriver.ownedMoney > debtThreshold ? 'text-red-600' : 'text-gray-900'}`}>${selectedDriver.ownedMoney.toFixed(2)}</span>
+                      <div className="flex gap-2">
+                        {selectedDriver.ownedMoney > 0 && (
+                          <Button size="sm" variant="secondary" className="rounded-lg px-3 h-9 text-xs" onClick={handleNotify}>
+                            <Bell size={14} />
+                          </Button>
+                        )}
+                        <Button size="sm" variant="secondary" className="rounded-lg px-4 h-9 text-xs font-bold" disabled={selectedDriver.ownedMoney <= 0} onClick={() => handleOpenLog(PayoutType.COLLECT_FROM_DRIVER)}>Collect</Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* History Table */}
+              <div className="flex-1 flex flex-col overflow-hidden p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <History size={14} /> Account Ledger
+                  </h3>
+                  <button className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1">
+                    <Download size={12} /> Statement
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto border border-gray-100 rounded-xl bg-white shadow-sm">
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase border-b border-gray-100">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Action</th>
+                        <th className="px-4 py-3">Method</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {selectedDriver.logs.map(log => (
+                        <tr key={log.id} className="hover:bg-gray-50/30">
+                          <td className="px-4 py-3 text-gray-500 font-medium whitespace-nowrap">{log.date}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-bold uppercase ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-blue-500' : 'text-amber-500'}`}>
+                              {log.type === PayoutType.PAYOUT_TO_DRIVER ? 'Payout' : 'Collection'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-400 text-xs font-medium">{log.paymentMethod.replace('_', ' ')}</td>
+                          <td className={`px-4 py-3 text-right font-bold ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-gray-900' : 'text-red-500'}`}>
+                            {log.type === PayoutType.PAYOUT_TO_DRIVER ? '-' : '+'}${log.amount.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {selectedDriver.logs.length === 0 && (
+                    <div className="py-20 text-center text-gray-300 italic text-xs">No entries found for this driver</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-300">
+               <User size={60} strokeWidth={1} className="mb-4 opacity-10" />
+               <p className="text-xs font-bold uppercase tracking-widest">Select a driver record</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Settlement Modal */}
       <Modal 
         isOpen={logModal.open} 
         onClose={() => setLogModal({ open: false })} 
-        title="Account Settlement"
+        title={logModal.type === PayoutType.PAYOUT_TO_DRIVER ? "Disburse Payout" : "Record Collection"}
       >
-        <div className="space-y-5">
-          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
-             <div className="flex items-center gap-3">
-                <img src={activeDriverForModal?.avatarUrl} className="w-9 h-9 rounded-lg border-2 border-white shadow-sm" alt="" />
-                <div>
-                   <span className="text-xs font-black text-gray-900 block truncate max-w-[120px]">{activeDriverForModal?.name}</span>
-                   <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Balance Check</span>
-                </div>
-             </div>
-             <div className="text-right shrink-0">
-                <p className={`text-base font-black tracking-tight ${activeDriverForModal?.payoutAmount! > 0 ? 'text-blue-600' : 'text-amber-600'}`}>
-                   ${(activeDriverForModal?.payoutAmount || activeDriverForModal?.ownedMoney || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-             </div>
+        <div className="space-y-4">
+          <div className="p-4 bg-gray-50 rounded-2xl flex items-center gap-3">
+            <img src={selectedDriver?.avatarUrl} className="w-8 h-8 rounded-full border border-gray-200" alt="" />
+            <div>
+              <p className="text-xs font-bold text-gray-900 leading-none">{selectedDriver?.name}</p>
+              <p className="text-[10px] text-gray-400 mt-1 uppercase">Authorizing Transaction</p>
+            </div>
           </div>
-
-          <div className="space-y-4">
-            <Select 
-              label="Transaction Action"
-              options={[
-                { value: PayoutType.PAYOUT_TO_DRIVER, label: 'Platform Payout' },
-                { value: PayoutType.COLLECT_FROM_DRIVER, label: 'Manual Collection' }
-              ]}
-              value={logFormData.type}
-              onChange={e => setLogFormData({...logFormData, type: e.target.value as PayoutType})}
-              className="h-12 font-semibold text-xs rounded-xl"
-            />
-
+          <div className="space-y-4 pt-2">
             <Select 
               label="Payment Channel"
               options={[
-                { value: PaymentMethod.BANK_TRANSFER, label: 'Wire / Bank Transfer' },
-                { value: PaymentMethod.CASH, label: 'Physical Cash' },
+                { value: PaymentMethod.BANK_TRANSFER, label: 'Bank Transfer' },
+                { value: PaymentMethod.CASH, label: 'Cash / Office Deposit' },
                 { value: PaymentMethod.MOBILE_MONEY, label: 'Mobile Money' },
-                { value: PaymentMethod.STRIPE, label: 'Stripe' }
+                { value: PaymentMethod.STRIPE, label: 'Digital Card' }
               ]}
               value={logFormData.paymentMethod}
               onChange={e => setLogFormData({...logFormData, paymentMethod: e.target.value as PaymentMethod})}
-              className="h-12 font-semibold text-xs rounded-xl"
+              className="h-11 text-xs font-bold"
             />
-            
-            <div className="relative group">
+            <div className="relative">
               <Input 
-                label="Authorize Amount" 
+                label="Transaction Amount" 
                 type="number" 
-                placeholder="0.00" 
                 value={logFormData.amount}
                 onChange={e => setLogFormData({...logFormData, amount: parseFloat(e.target.value) || 0})}
-                className="h-12 font-black text-base pr-20 rounded-xl"
+                className="h-11 font-bold text-lg pr-12"
               />
               <button 
-                onClick={() => setLogFormData({...logFormData, amount: activeDriverForModal?.payoutAmount || activeDriverForModal?.ownedMoney || 0})}
-                className="absolute right-4 top-[42px] text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline bg-blue-50 px-2 py-1 rounded transition-all"
+                onClick={() => setLogFormData({...logFormData, amount: logModal.type === PayoutType.PAYOUT_TO_DRIVER ? selectedDriver?.payoutAmount : selectedDriver?.ownedMoney})}
+                className="absolute right-3 top-9 text-[10px] font-bold text-blue-600 uppercase"
               >
-                Clear
+                Max
               </button>
             </div>
-
             <Input 
-              label="Note" 
-              placeholder="e.g. Bank Transfer ID" 
+              label="Memo / Reference" 
+              placeholder="Internal tracking ID..." 
               value={logFormData.note}
               onChange={e => setLogFormData({...logFormData, note: e.target.value})}
-              className="h-12 font-medium text-xs rounded-xl"
+              className="h-11 text-xs"
             />
           </div>
-
-          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-gray-100">
-            <Button variant="secondary" className="rounded-xl h-11 w-full sm:w-auto" onClick={() => setLogModal({ open: false })}>Cancel</Button>
-            <Button variant="black" className="rounded-xl h-11 w-full sm:w-auto font-black uppercase tracking-widest text-[10px]" onClick={handleSaveLog}>Authorize</Button>
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-50 mt-4">
+            <Button variant="ghost" onClick={() => setLogModal({ open: false })} className="text-xs font-bold">Discard</Button>
+            <Button variant="black" onClick={handleSaveLog} className="px-8 text-xs font-bold">Commit Action</Button>
           </div>
         </div>
       </Modal>
+
+      {/* Settings Modal */}
+      <Modal isOpen={settingsModal} onClose={() => setSettingsModal(false)} title="Treasury Policy">
+        <div className="space-y-6">
+          <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+             <div className="flex justify-between items-center mb-6">
+               <p className="text-sm font-bold text-gray-900">Risk Threshold</p>
+               <span className="text-xl font-bold text-red-600">${debtThreshold}</span>
+             </div>
+             <input 
+              type="range" 
+              min="100" 
+              max="2000" 
+              step="50" 
+              value={debtThreshold} 
+              onChange={e => setDebtThreshold(parseInt(e.target.value))} 
+              className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
+             />
+             <p className="text-[10px] text-gray-400 mt-4 italic font-medium">Drivers exceeding this limit will be flagged as "High Risk" and may require immediate collection.</p>
+          </div>
+          <Button variant="black" fullWidth onClick={() => setSettingsModal(false)} className="h-12 rounded-xl text-xs font-bold uppercase tracking-widest">Update Policy</Button>
+        </div>
+      </Modal>
+
+      {/* Notify Simulation Overlay */}
+      {notifyModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white p-8 rounded-[32px] shadow-2xl flex flex-col items-center gap-4 text-center max-w-xs animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center animate-bounce">
+              <Bell size={32} />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-gray-900">Sending Alert</p>
+              <p className="text-xs text-gray-400 font-medium">Broadcasting push notification to driver's mobile device...</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

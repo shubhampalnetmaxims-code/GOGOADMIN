@@ -3,7 +3,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Save, MapPin, Zap, Plus, Trash2, Globe, CheckCircle2, Navigation, Clock, Timer, Layers, Map as MapIcon,
   Edit2, ChevronRight, DollarSign, Moon, HelpCircle, Calculator, Check, Shield, Lock, Trash, Coffee, AlertTriangle,
-  Settings, Target, Crosshair, BarChart3, CloudRain, ChevronDown
+  Settings, Target, Crosshair, BarChart3, CloudRain, ChevronDown, Calendar, CheckSquare, Square,
+  // Added Car icon to imports
+  Car
 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -325,7 +327,7 @@ const DynamicPricingHub: React.FC<{
   };
 
   const handleSave = () => {
-    if (!formData.name || (formData.locationIds?.length === 0 && formData.zoneIds?.length === 0)) return;
+    if (!formData.name) return;
     const rule = { ...formData, id: modalState.editId || Date.now().toString() } as SurgeRule;
     setRules(modalState.editId ? rules.map(r => r.id === modalState.editId ? rule : r) : [...rules, rule]);
     setModalState({ open: false });
@@ -334,6 +336,12 @@ const DynamicPricingHub: React.FC<{
   const toggleRule = (id: string) => {
     if (disabled) return;
     setRules(rules.map(r => r.id === id ? { ...r, isActive: !r.isActive } : r));
+  };
+
+  const toggleSelection = (key: keyof SurgeRule, val: any) => {
+    const current = (formData[key] as any[]) || [];
+    const updated = current.includes(val) ? current.filter(v => v !== val) : [...current, val];
+    setFormData({ ...formData, [key]: updated });
   };
 
   return (
@@ -368,8 +376,19 @@ const DynamicPricingHub: React.FC<{
                   <span className={`text-2xl md:text-3xl font-black ${rule.isActive ? 'text-gray-900' : 'text-gray-400'}`}>{rule.pricingType === 'MULTIPLIER' ? `${rule.pricingValue}x` : `+$${rule.pricingValue}`}</span>
                   <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{rule.pricingType}</span>
                </div>
+               
+               <div className="space-y-2 mb-6">
+                  <div className="flex flex-wrap gap-1">
+                    {rule.locationIds.length > 0 && <span className="px-2 py-0.5 bg-gray-50 text-gray-400 text-[8px] font-bold rounded uppercase tracking-tighter">{rule.locationIds.length} Markets</span>}
+                    {rule.vehicleTypes.length > 0 && <span className="px-2 py-0.5 bg-blue-50 text-blue-400 text-[8px] font-bold rounded uppercase tracking-tighter">{rule.vehicleTypes.length} Vehicle Types</span>}
+                    {rule.zoneIds.length > 0 && <span className="px-2 py-0.5 bg-amber-50 text-amber-400 text-[8px] font-bold rounded uppercase tracking-tighter">{rule.zoneIds.length} Zones</span>}
+                  </div>
+               </div>
+
                <div className="flex items-center justify-between pt-4 border-t border-gray-100 text-[9px] font-black uppercase tracking-widest mt-auto">
-                  <span className="flex items-center gap-1 text-gray-400"><Clock size={12}/> {rule.isScheduled ? `${rule.startTime}-${rule.endTime}` : '24/7'}</span>
+                  <span className="flex items-center gap-1 text-gray-400">
+                    <Clock size={12}/> {rule.isScheduled ? `${rule.startTime}-${rule.endTime}` : '24/7 Always Active'}
+                  </span>
                   <span className={rule.isActive ? 'text-blue-600' : 'text-gray-400'}>{rule.isActive ? 'Online' : 'Paused'}</span>
                </div>
             </div>
@@ -377,15 +396,89 @@ const DynamicPricingHub: React.FC<{
        </div>
 
        <Modal isOpen={modalState.open} onClose={() => setModalState({ open: false })} title="Surge Configuration">
-          <div className="space-y-6">
-             <Input label="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-             <div className="grid grid-cols-2 gap-4">
-                <Select label="Type" options={[{ value: 'MULTIPLIER', label: 'Multiplier (x)' }, { value: 'FLAT', label: 'Flat Fee (+)' }]} value={formData.pricingType} onChange={e => setFormData({...formData, pricingType: e.target.value as any})} />
-                <Input label="Value" type="number" step="0.01" value={formData.pricingValue} onChange={e => setFormData({...formData, pricingValue: parseFloat(e.target.value)})} />
+          <div className="space-y-6 max-h-[70vh] no-scrollbar">
+             <section className="space-y-4">
+                <Input label="Rule Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. New Year Peak" />
+                <div className="grid grid-cols-2 gap-4">
+                  <Select label="Math Type" options={[{ value: 'MULTIPLIER', label: 'Multiplier (x)' }, { value: 'FLAT', label: 'Flat Fee (+)' }]} value={formData.pricingType} onChange={e => setFormData({...formData, pricingType: e.target.value as any})} />
+                  <Input label="Surge Value" type="number" step="0.01" value={formData.pricingValue} onChange={e => setFormData({...formData, pricingValue: parseFloat(e.target.value)})} />
+                </div>
+             </section>
+
+             <div className="border-t border-gray-100 pt-6 space-y-6">
+                {/* Location Selection */}
+                <div>
+                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-3 flex items-center gap-2">
+                      <Globe size={12} /> Target Markets
+                   </p>
+                   <div className="grid grid-cols-2 gap-2">
+                      {availableLocations.map(loc => (
+                        <button key={loc.id} onClick={() => toggleSelection('locationIds', loc.id)} className={`flex items-center gap-3 p-3 rounded-xl border text-xs font-bold transition-all ${formData.locationIds?.includes(loc.id) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-100 text-gray-400'}`}>
+                           {formData.locationIds?.includes(loc.id) ? <CheckSquare size={16}/> : <Square size={16} className="opacity-20"/>}
+                           {loc.name}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+
+                {/* Vehicle Type Selection */}
+                <div>
+                   <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-3 flex items-center gap-2">
+                      {/* Fixed: Car icon is now imported and used correctly */}
+                      <Car size={12} /> Affected Categories
+                   </p>
+                   <div className="grid grid-cols-2 gap-2">
+                      {Object.values(VehicleType).map(type => (
+                        <button key={type} onClick={() => toggleSelection('vehicleTypes', type)} className={`flex items-center gap-3 p-3 rounded-xl border text-[10px] font-black uppercase tracking-tighter transition-all ${formData.vehicleTypes?.includes(type) ? 'bg-gray-900 border-gray-900 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400'}`}>
+                           {formData.vehicleTypes?.includes(type) ? <CheckSquare size={14}/> : <Square size={14} className="opacity-20"/>}
+                           {type.replace('_', ' ')}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+
+                {/* Zone Selection */}
+                {formData.locationIds && formData.locationIds.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-3 flex items-center gap-2">
+                        <MapPin size={12} /> Specific Geofences (Optional)
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                        {availableZones.filter(z => formData.locationIds?.includes(z.locationId)).map(zone => (
+                          <button key={zone.id} onClick={() => toggleSelection('zoneIds', zone.id)} className={`flex items-center gap-3 p-3 rounded-xl border text-xs font-bold transition-all ${formData.zoneIds?.includes(zone.id) ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-white border-gray-100 text-gray-400'}`}>
+                            {formData.zoneIds?.includes(zone.id) ? <CheckSquare size={16}/> : <Square size={16} className="opacity-20"/>}
+                            {zone.name}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Scheduling */}
+                <div className="p-5 bg-gray-50 rounded-[24px] border border-gray-100">
+                   <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                         <Calendar size={16} className="text-gray-400"/>
+                         <span className="text-sm font-bold text-gray-900">Time-Based Schedule</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer scale-90">
+                          <input type="checkbox" className="sr-only peer" checked={formData.isScheduled} onChange={() => setFormData({...formData, isScheduled: !formData.isScheduled})} />
+                          <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                      </label>
+                   </div>
+                   
+                   {formData.isScheduled && (
+                     <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                        <Input label="Start" type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} />
+                        <Input label="End" type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} />
+                     </div>
+                   )}
+                </div>
              </div>
-             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <Button variant="secondary" onClick={() => setModalState({ open: false })}>Discard</Button>
-                <Button variant="black" onClick={handleSave}>Apply</Button>
+
+             <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+                <Button variant="secondary" onClick={() => setModalState({ open: false })}>Cancel</Button>
+                <Button variant="black" onClick={handleSave} className="px-10">Save Policy</Button>
              </div>
           </div>
        </Modal>
@@ -420,6 +513,20 @@ const MarketSetup: React.FC<{
     if (disabled) return;
     setZoneData(zone || { name: '', radius: 1000, lat: 40.7128, lng: -74.0060, isActive: true });
     setZoneModal({ open: true, editId: zone?.id });
+  };
+
+  const saveLoc = () => {
+    if (!locData.name) return;
+    const newLoc = { ...locData, id: locModal.editId || `loc-${Date.now()}`, isActive: true } as Location;
+    setLocations(locModal.editId ? locations.map(l => l.id === locModal.editId ? newLoc : l) : [...locations, newLoc]);
+    setLocModal({ open: false });
+  };
+
+  const saveZone = () => {
+    if (!zoneData.name) return;
+    const newZone = { ...zoneData, id: zoneModal.editId || `z-${Date.now()}`, locationId: selectedLocationId, isActive: true } as OperationalZone;
+    setZones(zoneModal.editId ? zones.map(z => z.id === zoneModal.editId ? newZone : z) : [...zones, newZone]);
+    setZoneModal({ open: false });
   };
 
   return (
@@ -479,22 +586,23 @@ const MarketSetup: React.FC<{
 
        <Modal isOpen={locModal.open} onClose={() => setLocModal({ open: false })} title="Market Setup">
           <div className="space-y-4">
-             <Input label="Name" value={locData.name} onChange={e => setLocData({...locData, name: e.target.value})} />
-             <Input label="Currency" value={locData.currency} onChange={e => setLocData({...locData, currency: e.target.value})} />
+             <Input label="Name" value={locData.name} onChange={e => setLocData({...locData, name: e.target.value})} placeholder="e.g. Paris" />
+             <Input label="Country" value={locData.country} onChange={e => setLocData({...locData, country: e.target.value})} placeholder="e.g. France" />
+             <Input label="Currency" value={locData.currency} onChange={e => setLocData({...locData, currency: e.target.value})} placeholder="e.g. EUR" />
              <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button variant="secondary" onClick={() => setLocModal({ open: false })}>Cancel</Button>
-                <Button variant="black" onClick={() => setLocModal({ open: false })}>Save</Button>
+                <Button variant="black" onClick={saveLoc}>Establish Market</Button>
              </div>
           </div>
        </Modal>
 
        <Modal isOpen={zoneModal.open} onClose={() => setZoneModal({ open: false })} title="Geofence Spec">
           <div className="space-y-5">
-             <Input label="Hub Name" value={zoneData.name} onChange={e => setZoneData({...zoneData, name: e.target.value})} />
+             <Input label="Hub Name" value={zoneData.name} onChange={e => setZoneData({...zoneData, name: e.target.value})} placeholder="e.g. Central Station" />
              <MapPicker lat={zoneData.lat || 40.7128} lng={zoneData.lng || -74.0060} radius={zoneData.radius || 1000} onChange={(lat, lng) => setZoneData({...zoneData, lat, lng})} />
              <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button variant="secondary" onClick={() => setZoneModal({ open: false })}>Cancel</Button>
-                <Button variant="black" onClick={() => setZoneModal({ open: false })}>Save</Button>
+                <Button variant="black" onClick={saveZone}>Define Geofence</Button>
              </div>
           </div>
        </Modal>

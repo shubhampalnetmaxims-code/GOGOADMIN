@@ -4,7 +4,8 @@ import {
   Search, ArrowLeft, ArrowDownLeft, ArrowRight,
   ChevronRight, CheckCircle2, Receipt, 
   History, Download, Ban, UserCheck, 
-  Clock, User, DollarSign, Settings, Bell, AlertTriangle
+  Clock, User, DollarSign, Settings, Bell, AlertTriangle,
+  ChevronLeft, PieChart, TrendingUp, Landmark
 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -157,7 +158,7 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 leading-none">Billing & Payouts</h1>
-            <p className="text-xs text-gray-500 mt-1">Manage driver settlements and collection policies</p>
+            <p className="text-xs text-gray-500 mt-1 uppercase tracking-widest font-black">Audit Control</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -167,14 +168,14 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
               <span className="text-sm font-bold text-gray-900">${drivers.reduce((acc, d) => acc + d.payoutAmount, 0).toLocaleString()}</span>
             </div>
             <div className="flex flex-col text-right border-l border-gray-100 pl-6">
-              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Total Collections</span>
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Active Debt</span>
               <span className="text-sm font-bold text-amber-600">${drivers.reduce((acc, d) => acc + d.ownedMoney, 0).toLocaleString()}</span>
             </div>
           </div>
           <button 
             onClick={() => setSettingsModal(true)}
             className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all border border-transparent hover:border-gray-200"
-            title="Billing Settings"
+            title="Treasury Policy"
           >
             <Settings size={20} />
           </button>
@@ -189,13 +190,13 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input 
                 type="text" 
-                placeholder="Find driver by name or ID..." 
+                placeholder="Find driver..." 
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-gray-50 border-none rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-all"
               />
             </div>
-            <div className="flex gap-1 overflow-x-auto no-scrollbar">
+            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
               {['ALL', 'PAYOUT', 'DEBT', 'HIGH_RISK'].map(f => (
                 <button 
                   key={f}
@@ -244,94 +245,118 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
         <div className={`flex-1 flex flex-col bg-white transition-all fixed inset-0 lg:relative ${isMobileDetailView ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
           {selectedDriver ? (
             <div className="flex flex-col h-full bg-white">
-              {/* Profile Bar */}
+              {/* Profile Bar with Back Button */}
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <button onClick={() => setIsMobileDetailView(false)} className="lg:hidden p-2 -ml-2 text-gray-400"><ArrowLeft size={20} /></button>
+                  <button 
+                    onClick={() => setIsMobileDetailView(false)} 
+                    className="p-2 -ml-2 text-gray-400 hover:text-gray-900 bg-gray-50 lg:hidden rounded-lg transition-all"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
                   <img src={selectedDriver.avatarUrl} className="w-14 h-14 rounded-xl object-cover shadow-sm border border-gray-100" alt="" />
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">{selectedDriver.name}</h2>
-                    <p className="text-xs text-gray-400 font-medium">Driver ID: {selectedDriver.id} • {selectedDriver.completedTrips} Trips</p>
+                    <h2 className="text-xl font-bold text-gray-900 leading-none">{selectedDriver.name}</h2>
+                    <p className="text-[10px] text-gray-400 font-black mt-2 uppercase tracking-widest">Driver Account: {selectedDriver.id}</p>
                   </div>
                 </div>
-                {selectedDriver.ownedMoney > debtThreshold && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-red-100">
-                    <AlertTriangle size={12} /> High Risk Account
-                  </div>
-                )}
-              </div>
-
-              {/* Actionable Balances */}
-              <div className="p-6 bg-gray-50/50 border-b border-gray-100">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                    <div className="flex justify-between items-start mb-4">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Available Payout</p>
-                      <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><DollarSign size={14} /></div>
+                <div className="flex items-center gap-3">
+                  {selectedDriver.ownedMoney > debtThreshold && (
+                    <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-red-100">
+                      <AlertTriangle size={12} /> High Risk
                     </div>
-                    <div className="flex items-end justify-between">
-                      <span className="text-3xl font-bold text-gray-900">${selectedDriver.payoutAmount.toFixed(2)}</span>
-                      <Button size="sm" variant="black" className="rounded-lg px-4 h-9 text-xs" disabled={selectedDriver.payoutAmount <= 0} onClick={() => handleOpenLog(PayoutType.PAYOUT_TO_DRIVER)}>Settlement</Button>
-                    </div>
-                  </div>
-                  <div className={`p-5 rounded-2xl border shadow-sm transition-all ${selectedDriver.ownedMoney > debtThreshold ? 'bg-red-50/30 border-red-100' : 'bg-white border-gray-200'}`}>
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Driver Owed</p>
-                        {selectedDriver.ownedMoney > 0 && (
-                          <p className="text-[9px] font-bold text-amber-600 mt-1 uppercase tracking-tighter flex items-center gap-1">
-                            <Clock size={10} /> Owed for {getDebtAge(selectedDriver.debtStartedAt)} days
-                          </p>
-                        )}
-                      </div>
-                      <div className={`p-1.5 rounded-lg ${selectedDriver.ownedMoney > debtThreshold ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'}`}><ArrowDownLeft size={14} /></div>
-                    </div>
-                    <div className="flex items-end justify-between">
-                      <span className={`text-3xl font-bold ${selectedDriver.ownedMoney > debtThreshold ? 'text-red-600' : 'text-gray-900'}`}>${selectedDriver.ownedMoney.toFixed(2)}</span>
-                      <div className="flex gap-2">
-                        {selectedDriver.ownedMoney > 0 && (
-                          <Button size="sm" variant="secondary" className="rounded-lg px-3 h-9 text-xs" onClick={handleNotify}>
-                            <Bell size={14} />
-                          </Button>
-                        )}
-                        <Button size="sm" variant="secondary" className="rounded-lg px-4 h-9 text-xs font-bold" disabled={selectedDriver.ownedMoney <= 0} onClick={() => handleOpenLog(PayoutType.COLLECT_FROM_DRIVER)}>Collect</Button>
-                      </div>
-                    </div>
-                  </div>
+                  )}
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ${selectedDriver.isBlocked ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'}`}>
+                    {selectedDriver.isBlocked ? 'Blocked' : 'Active'}
+                  </span>
                 </div>
               </div>
 
-              {/* History Table */}
+              {/* Comprehensive Revenue Overview (Gross, Commission, Tax) */}
+              <div className="p-6 md:p-8 bg-gray-50/50 border-b border-gray-100">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <TrendingUp size={10} /> Gross Earned
+                    </p>
+                    <p className="text-lg font-black text-gray-900">${selectedDriver.totalEarned.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <PieChart size={10} /> Commission
+                    </p>
+                    <p className="text-lg font-black text-gray-900">-${selectedDriver.totalCommission.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                      <Landmark size={10} /> Est. Tax
+                    </p>
+                    <p className="text-lg font-black text-gray-900">-$42.00</p>
+                  </div>
+                  <div className={`p-4 rounded-2xl border shadow-sm ${selectedDriver.payoutAmount > 0 ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-200'}`}>
+                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2">Net Wallet</p>
+                    <p className={`text-lg font-black ${selectedDriver.ownedMoney > 0 ? 'text-amber-600' : 'text-blue-700'}`}>
+                      ${(selectedDriver.payoutAmount - selectedDriver.ownedMoney).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Main Action Bar */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Available Payout</p>
+                      <p className="text-2xl font-black text-gray-900">${selectedDriver.payoutAmount.toFixed(2)}</p>
+                    </div>
+                    <Button variant="black" className="rounded-xl px-6 h-11 text-xs font-black uppercase tracking-widest" disabled={selectedDriver.payoutAmount <= 0} onClick={() => handleOpenLog(PayoutType.PAYOUT_TO_DRIVER)}>Disburse</Button>
+                  </div>
+                  <div className={`p-5 rounded-2xl border shadow-sm flex items-center justify-between ${selectedDriver.ownedMoney > debtThreshold ? 'bg-red-50 border-red-100' : 'bg-white border-gray-200'}`}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Debt</p>
+                         {selectedDriver.ownedMoney > 0 && <span className="text-[9px] text-amber-600 font-bold tracking-tighter flex items-center gap-1"><Clock size={10} /> {getDebtAge(selectedDriver.debtStartedAt)}d</span>}
+                      </div>
+                      <p className={`text-2xl font-black ${selectedDriver.ownedMoney > debtThreshold ? 'text-red-600' : 'text-gray-900'}`}>${selectedDriver.ownedMoney.toFixed(2)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                       <Button variant="secondary" className="rounded-xl px-4 h-11" onClick={handleNotify}><Bell size={16} /></Button>
+                       <Button variant="secondary" className="rounded-xl px-6 h-11 text-xs font-black uppercase tracking-widest" disabled={selectedDriver.ownedMoney <= 0} onClick={() => handleOpenLog(PayoutType.COLLECT_FROM_DRIVER)}>Collect</Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* History Ledger */}
               <div className="flex-1 flex flex-col overflow-hidden p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                    <History size={14} /> Account Ledger
+                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <History size={14} /> Settlement History
                   </h3>
-                  <button className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1">
-                    <Download size={12} /> Statement
+                  <button className="text-[10px] font-black text-blue-600 hover:underline flex items-center gap-1 uppercase tracking-widest">
+                    <Download size={12} /> Get CSV
                   </button>
                 </div>
-                <div className="flex-1 overflow-y-auto border border-gray-100 rounded-xl bg-white shadow-sm">
+                <div className="flex-1 overflow-y-auto border border-gray-100 rounded-2xl bg-white shadow-sm overflow-hidden">
                   <table className="w-full text-left text-sm">
-                    <thead className="sticky top-0 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase border-b border-gray-100">
+                    <thead className="sticky top-0 bg-gray-50 text-[10px] font-black text-gray-400 uppercase border-b border-gray-100">
                       <tr>
-                        <th className="px-4 py-3">Date</th>
-                        <th className="px-4 py-3">Action</th>
-                        <th className="px-4 py-3">Method</th>
-                        <th className="px-4 py-3 text-right">Amount</th>
+                        <th className="px-6 py-4">Transaction Date</th>
+                        <th className="px-6 py-4">Operation</th>
+                        <th className="px-6 py-4">Method</th>
+                        <th className="px-6 py-4 text-right">Value</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {selectedDriver.logs.map(log => (
-                        <tr key={log.id} className="hover:bg-gray-50/30">
-                          <td className="px-4 py-3 text-gray-500 font-medium whitespace-nowrap">{log.date}</td>
-                          <td className="px-4 py-3">
-                            <span className={`text-[10px] font-bold uppercase ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-blue-500' : 'text-amber-500'}`}>
-                              {log.type === PayoutType.PAYOUT_TO_DRIVER ? 'Payout' : 'Collection'}
+                        <tr key={log.id} className="hover:bg-gray-50/50">
+                          <td className="px-6 py-4 text-gray-500 font-medium whitespace-nowrap">{log.date}</td>
+                          <td className="px-6 py-4">
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-blue-500' : 'text-amber-500'}`}>
+                              {log.type === PayoutType.PAYOUT_TO_DRIVER ? 'Disbursed' : 'Collected'}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-gray-400 text-xs font-medium">{log.paymentMethod.replace('_', ' ')}</td>
-                          <td className={`px-4 py-3 text-right font-bold ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-gray-900' : 'text-red-500'}`}>
+                          <td className="px-6 py-4 text-gray-400 text-[10px] font-black uppercase tracking-widest">{log.paymentMethod.replace('_', ' ')}</td>
+                          <td className={`px-6 py-4 text-right font-black ${log.type === PayoutType.PAYOUT_TO_DRIVER ? 'text-gray-900' : 'text-red-500'}`}>
                             {log.type === PayoutType.PAYOUT_TO_DRIVER ? '-' : '+'}${log.amount.toFixed(2)}
                           </td>
                         </tr>
@@ -339,15 +364,17 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
                     </tbody>
                   </table>
                   {selectedDriver.logs.length === 0 && (
-                    <div className="py-20 text-center text-gray-300 italic text-xs">No entries found for this driver</div>
+                    <div className="py-20 text-center text-gray-300 font-black uppercase tracking-widest text-[10px]">Registry Empty</div>
                   )}
                 </div>
               </div>
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-300">
-               <User size={60} strokeWidth={1} className="mb-4 opacity-10" />
-               <p className="text-xs font-bold uppercase tracking-widest">Select a driver record</p>
+               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                  <User size={32} strokeWidth={1} className="opacity-20" />
+               </div>
+               <p className="text-[10px] font-black uppercase tracking-widest">Select Account</p>
             </div>
           )}
         </div>
@@ -357,92 +384,95 @@ export const BillingPayoutPage: React.FC<{ onNavigateToTrips?: (filter: string) 
       <Modal 
         isOpen={logModal.open} 
         onClose={() => setLogModal({ open: false })} 
-        title={logModal.type === PayoutType.PAYOUT_TO_DRIVER ? "Disburse Payout" : "Record Collection"}
+        title={logModal.type === PayoutType.PAYOUT_TO_DRIVER ? "Commit Disbursement" : "Record Collection"}
       >
         <div className="space-y-4">
-          <div className="p-4 bg-gray-50 rounded-2xl flex items-center gap-3">
-            <img src={selectedDriver?.avatarUrl} className="w-8 h-8 rounded-full border border-gray-200" alt="" />
+          <div className="p-4 bg-gray-50 rounded-[20px] flex items-center gap-3">
+            <img src={selectedDriver?.avatarUrl} className="w-10 h-10 rounded-xl border border-gray-200" alt="" />
             <div>
-              <p className="text-xs font-bold text-gray-900 leading-none">{selectedDriver?.name}</p>
-              <p className="text-[10px] text-gray-400 mt-1 uppercase">Authorizing Transaction</p>
+              <p className="text-xs font-black text-gray-900 leading-none">{selectedDriver?.name}</p>
+              <p className="text-[10px] text-gray-400 mt-1 uppercase font-black">Admin Clearance</p>
             </div>
           </div>
           <div className="space-y-4 pt-2">
             <Select 
-              label="Payment Channel"
+              label="Asset Channel"
               options={[
-                { value: PaymentMethod.BANK_TRANSFER, label: 'Bank Transfer' },
-                { value: PaymentMethod.CASH, label: 'Cash / Office Deposit' },
-                { value: PaymentMethod.MOBILE_MONEY, label: 'Mobile Money' },
-                { value: PaymentMethod.STRIPE, label: 'Digital Card' }
+                { value: PaymentMethod.BANK_TRANSFER, label: 'Swift / Bank' },
+                { value: PaymentMethod.CASH, label: 'Physical Cash' },
+                { value: PaymentMethod.MOBILE_MONEY, label: 'M-Pesa / Mobile' },
+                { value: PaymentMethod.STRIPE, label: 'Stripe / Card' }
               ]}
               value={logFormData.paymentMethod}
               onChange={e => setLogFormData({...logFormData, paymentMethod: e.target.value as PaymentMethod})}
-              className="h-11 text-xs font-bold"
+              className="h-12 text-xs font-black uppercase"
             />
             <div className="relative">
               <Input 
-                label="Transaction Amount" 
+                label="Transfer Amount" 
                 type="number" 
                 value={logFormData.amount}
                 onChange={e => setLogFormData({...logFormData, amount: parseFloat(e.target.value) || 0})}
-                className="h-11 font-bold text-lg pr-12"
+                className="h-14 font-black text-xl pr-16 rounded-[18px]"
               />
               <button 
                 onClick={() => setLogFormData({...logFormData, amount: logModal.type === PayoutType.PAYOUT_TO_DRIVER ? selectedDriver?.payoutAmount : selectedDriver?.ownedMoney})}
-                className="absolute right-3 top-9 text-[10px] font-bold text-blue-600 uppercase"
+                className="absolute right-4 top-11 text-[10px] font-black text-blue-600 uppercase tracking-widest"
               >
                 Max
               </button>
             </div>
             <Input 
-              label="Memo / Reference" 
-              placeholder="Internal tracking ID..." 
+              label="Internal Memo" 
+              placeholder="Ref code..." 
               value={logFormData.note}
               onChange={e => setLogFormData({...logFormData, note: e.target.value})}
-              className="h-11 text-xs"
+              className="h-12 text-xs"
             />
           </div>
-          <div className="flex justify-end gap-2 pt-4 border-t border-gray-50 mt-4">
-            <Button variant="ghost" onClick={() => setLogModal({ open: false })} className="text-xs font-bold">Discard</Button>
-            <Button variant="black" onClick={handleSaveLog} className="px-8 text-xs font-bold">Commit Action</Button>
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-50 mt-4">
+            <Button variant="ghost" onClick={() => setLogModal({ open: false })} className="text-[10px] font-black uppercase">Cancel</Button>
+            <Button variant="black" onClick={handleSaveLog} className="px-8 h-12 text-[10px] font-black uppercase tracking-widest shadow-xl">Execute Transaction</Button>
           </div>
         </div>
       </Modal>
 
       {/* Settings Modal */}
-      <Modal isOpen={settingsModal} onClose={() => setSettingsModal(false)} title="Treasury Policy">
+      <Modal isOpen={settingsModal} onClose={() => setSettingsModal(false)} title="Market Policy">
         <div className="space-y-6">
-          <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+          <div className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 shadow-inner">
              <div className="flex justify-between items-center mb-6">
-               <p className="text-sm font-bold text-gray-900">Risk Threshold</p>
-               <span className="text-xl font-bold text-red-600">${debtThreshold}</span>
+               <p className="text-xs font-black text-gray-900 uppercase tracking-widest">Debt Limit</p>
+               <span className="text-2xl font-black text-red-600 tracking-tighter">${debtThreshold}</span>
              </div>
              <input 
               type="range" 
               min="100" 
               max="2000" 
-              step="50" 
+              step="100" 
               value={debtThreshold} 
               onChange={e => setDebtThreshold(parseInt(e.target.value))} 
-              className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
+              className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-gray-900" 
              />
-             <p className="text-[10px] text-gray-400 mt-4 italic font-medium">Drivers exceeding this limit will be flagged as "High Risk" and may require immediate collection.</p>
+             <p className="text-[10px] text-gray-400 mt-6 leading-relaxed font-bold uppercase tracking-tighter opacity-50">Accounts exceeding this threshold are flagged for immediate manual review by the treasury team.</p>
           </div>
-          <Button variant="black" fullWidth onClick={() => setSettingsModal(false)} className="h-12 rounded-xl text-xs font-bold uppercase tracking-widest">Update Policy</Button>
+          <Button variant="black" fullWidth onClick={() => setSettingsModal(false)} className="h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-gray-200">Commit Policy</Button>
         </div>
       </Modal>
 
-      {/* Notify Simulation Overlay */}
+      {/* Notification Modal */}
       {notifyModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white p-8 rounded-[32px] shadow-2xl flex flex-col items-center gap-4 text-center max-w-xs animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center animate-bounce">
-              <Bell size={32} />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white p-10 rounded-[48px] shadow-2xl flex flex-col items-center gap-6 text-center max-w-sm animate-in zoom-in-95 duration-200 border border-white">
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center animate-bounce shadow-xl shadow-blue-100">
+              <Bell size={40} />
             </div>
             <div>
-              <p className="text-lg font-bold text-gray-900">Sending Alert</p>
-              <p className="text-xs text-gray-400 font-medium">Broadcasting push notification to driver's mobile device...</p>
+              <p className="text-xl font-black text-gray-900 tracking-tight">Broadcasting Alert</p>
+              <p className="text-xs text-gray-500 font-medium mt-2 leading-relaxed italic">The collection request is being synchronized with the driver's native application.</p>
+            </div>
+            <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+               <div className="h-full bg-blue-600 animate-[loading_1.5s_ease-in-out_infinite]" />
             </div>
           </div>
         </div>

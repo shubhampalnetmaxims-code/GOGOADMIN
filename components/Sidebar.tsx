@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Car, Wrench, Banknote, ChevronDown, ChevronRight, Tablet, Share2, Package, UserCheck, LogOut, ReceiptText } from 'lucide-react';
+import { LayoutDashboard, Users, Car, Wrench, Banknote, ChevronDown, ChevronRight, Tablet, Share2, Package, UserCheck, LogOut, ReceiptText, Navigation } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -52,6 +52,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, onL
             label="Billings & Payouts" 
             active={currentPage === 'billings'}
             onClick={() => onPageChange('billings')}
+          />
+        </div>
+
+        <div className="mb-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Operations
+        </div>
+        <div className="mb-6 space-y-1">
+          <NavItem 
+            icon={<Navigation size={20} />} 
+            label="Trips" 
+            active={currentPage === 'trips'}
+            onClick={() => onPageChange('trips')}
           />
         </div>
 

@@ -5,11 +5,13 @@ import { MakeModelPage } from './pages/MakeModelPage';
 import { PricingPage } from './pages/PricingPage';
 import { LoginPage } from './pages/LoginPage';
 import { BillingPayoutPage } from './pages/BillingPayoutPage';
+import { TripsPage } from './pages/TripsPage';
 import { PricingService } from './types';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('gogo_auth') === 'true');
   const [currentPage, setCurrentPage] = useState('make-model');
+  const [tripsFilter, setTripsFilter] = useState('');
 
   const handleLogin = () => {
     localStorage.setItem('gogo_auth', 'true');
@@ -21,6 +23,11 @@ const App: React.FC = () => {
     setIsLoggedIn(false);
   };
 
+  const navigateToTrips = (filter: string) => {
+    setTripsFilter(filter);
+    setCurrentPage('trips');
+  };
+
   if (!isLoggedIn) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -30,7 +37,9 @@ const App: React.FC = () => {
       case 'make-model':
         return <MakeModelPage />;
       case 'billings':
-        return <BillingPayoutPage />;
+        return <BillingPayoutPage onNavigateToTrips={navigateToTrips} />;
+      case 'trips':
+        return <TripsPage initialFilter={tripsFilter} onFilterChange={setTripsFilter} />;
       case 'pricing-book-ride':
         return <PricingPage service={PricingService.BOOK_RIDE} />;
       case 'pricing-sharing':
@@ -51,7 +60,14 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden">
-      <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} onLogout={handleLogout} />
+      <Sidebar 
+        currentPage={currentPage} 
+        onPageChange={(page) => {
+          if (page !== 'trips') setTripsFilter('');
+          setCurrentPage(page);
+        }} 
+        onLogout={handleLogout} 
+      />
       <main className="flex-1 overflow-auto bg-gray-50">
         {renderPage()}
       </main>

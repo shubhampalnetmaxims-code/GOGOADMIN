@@ -72,19 +72,13 @@ export interface VehiclePricingConfig {
   distancePricingMode: 'STANDARD' | 'TIERED';
 }
 
-export interface ZoneFee {
-  id: string;
-  zoneId: string;
-  amount: number;
-  isActive: boolean;
-  startTime: string; 
-  endTime: string;   
-}
-
+/**
+ * Interface for Surge Pricing Rules used in PricingPage.tsx
+ */
 export interface SurgeRule {
   id: string;
   name: string;
-  pricingType: 'MULTIPLIER' | 'FLAT';
+  pricingType: 'FLAT' | 'MULTIPLIER';
   pricingValue: number;
   locationIds: string[];
   vehicleTypes: VehicleType[];
@@ -102,8 +96,10 @@ export interface User {
 }
 
 export enum PayoutType {
-  PAYOUT_TO_DRIVER = 'PAYOUT_TO_DRIVER',
-  COLLECT_FROM_DRIVER = 'COLLECT_FROM_DRIVER',
+  PAYOUT_TO_DRIVER = 'PAYOUT_TO_DRIVER', // Admin pays driver
+  COLLECT_FROM_DRIVER = 'COLLECT_FROM_DRIVER', // Admin takes cash from driver
+  TRIP_EARNING_ONLINE = 'TRIP_EARNING_ONLINE', // Net added to wallet (+ Fare - Comm - Tax)
+  TRIP_COMMISSION_CASH = 'TRIP_COMMISSION_CASH', // Net subtracted from wallet (- Comm - Tax)
 }
 
 export enum PaymentMethod {
@@ -111,17 +107,19 @@ export enum PaymentMethod {
   CASH = 'CASH',
   MOBILE_MONEY = 'MOBILE_MONEY',
   STRIPE = 'STRIPE',
+  WALLET = 'WALLET',
 }
 
 export interface PayoutLog {
   id: string;
   date: string;
-  amount: number;
+  amount: number; // Positive for additions, Negative for deductions (display handled by type)
   type: PayoutType;
   paymentMethod: PaymentMethod;
   note: string;
   adminName: string;
   proofUrl?: string;
+  tripId?: string;
 }
 
 export interface DriverBilling {
@@ -129,11 +127,9 @@ export interface DriverBilling {
   name: string;
   avatarUrl: string;
   completedTrips: number;
-  totalEarned: number;
-  totalCommission: number; // after tax
-  payoutAmount: number; // money already paid
-  ownedMoney: number; // balance
-  debtStartedAt?: string; // ISO date when balance first became > 0
+  totalEarned: number; // Lifetime Earnings (Net)
+  walletBalance: number; // Current Liquid Balance (payoutAmount - ownedMoney)
+  debtStartedAt?: string; 
   logs: PayoutLog[];
   isBlocked?: boolean;
 }

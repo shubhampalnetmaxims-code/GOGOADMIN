@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
-import { Car, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Car, Lock, Mail, ArrowRight, ShieldCheck, UserCircle } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 
 interface LoginPageProps {
   onLogin: () => void;
+  onDriverLogin: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onDriverLogin }) => {
   const [email, setEmail] = useState('admin@gogo.com');
   const [password, setPassword] = useState('password');
   const [isLoading, setIsLoading] = useState(false);
@@ -16,7 +17,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate authentication delay for realism
     setTimeout(() => {
       onLogin();
       setIsLoading(false);
@@ -26,7 +26,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-6 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100 via-gray-50 to-white relative overflow-hidden">
       <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-8 duration-700">
-        {/* Logo */}
         <div className="flex justify-center mb-12">
           <div className="text-5xl font-black text-blue-600 tracking-tighter flex items-center">
             <span>G</span>
@@ -37,7 +36,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           </div>
         </div>
 
-        {/* Card */}
         <div className="bg-white rounded-[48px] shadow-2xl shadow-blue-900/10 border border-white/60 p-12 backdrop-blur-sm">
           <div className="mb-10 text-center">
             <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-2">Fleet Access</h1>
@@ -70,7 +68,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               />
             </div>
 
-            <div className="pt-4">
+            <div className="pt-4 flex flex-col gap-4">
               <Button 
                 variant="black" 
                 fullWidth 
@@ -89,6 +87,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     <ArrowRight size={20} className="ml-1" />
                   </div>
                 )}
+              </Button>
+              
+              <Button 
+                variant="secondary" 
+                fullWidth 
+                type="button"
+                onClick={onDriverLogin}
+                className="h-14 rounded-[20px] text-sm font-black uppercase tracking-widest border-2 border-gray-100 hover:bg-gray-50"
+                icon={<UserCircle size={20} />}
+              >
+                Driver Interface
               </Button>
             </div>
           </form>

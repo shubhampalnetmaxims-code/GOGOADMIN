@@ -121,6 +121,7 @@ export interface PayoutLog {
   paymentMethod: PaymentMethod;
   note: string;
   adminName: string;
+  proofUrl?: string;
 }
 
 export interface DriverBilling {
